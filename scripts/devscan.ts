@@ -4,10 +4,13 @@ import { findDuplicates } from '../src/analysis/duplicates';
 import { parseJava } from '../src/java/parser';
 import { ALL_SCANNERS } from '../src/registry';
 import { Endpoint, ScanContext } from '../src/model';
+import { toOpenApi } from '../src/report';
 import { parseQuery, rankEndpoints } from '../src/search/score';
 
 const root = process.argv[2] ?? '.';
 const filter = process.argv[3] ?? '';
+const openapiFlag = process.argv.indexOf('--openapi');
+const openapiOut = openapiFlag > 0 ? process.argv[openapiFlag + 1] : '';
 
 const files: string[] = [];
 
@@ -109,6 +112,11 @@ if (filter) {
   for (const ep of unresolved.slice(0, 5)) {
     console.log(`  ${ep.name} -> ${ep.unresolved.join(', ')}`);
   }
+}
+
+if (openapiOut) {
+  fs.writeFileSync(openapiOut, toOpenApi(all, (file) => file.replace(root, '').replace(/^[\\/]/, '')));
+  console.log(`\nOpenAPI 已写入: ${openapiOut}`);
 }
 
 console.log(`\n=== 重复映射 ===`);

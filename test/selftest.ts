@@ -1,9 +1,11 @@
 import { applyConstants } from '../src/analysis/constants';
 import { findDuplicates } from '../src/analysis/duplicates';
+import { findHoverTargets } from '../src/analysis/hover';
 import { applyInheritance, ifacesOf } from '../src/analysis/inheritance';
 import { parseJava } from '../src/java/parser';
 import { AnnotationNode, Endpoint, ScanContext } from '../src/model';
 import { ALL_SCANNERS } from '../src/registry';
+import { toOpenApi } from '../src/report';
 import { parseQuery, rankEndpoints } from '../src/search/score';
 
 let failed = 0;
@@ -291,6 +293,46 @@ check(
   mqFound.filter((ep) => ep.kind === 'mq').length === 3 &&
     mqFound.filter((ep) => ep.kind === 'scheduled').length === 1,
   mqFound.map((ep) => `${ep.kind}:${ep.path}`).join(',')
+);
+
+const openapi = JSON.parse(toOpenApi(found, (p) => p));
+check(
+  'OpenAPI 生成路径',
+  !!openapi.paths['/audit/reverse']?.post,
+  Object.keys(openapi.paths).join(',')
+);
+check(
+  'OpenAPI 保留中文描述',
+  openapi.paths['/audit/reverse']?.post?.description === '整单反审核'
+);
+check(
+  'OpenAPI 使用模块作为标签',
+  openapi.paths['/audit/reverse']?.post?.tags?.[0] === 'demo'
+);
+check(
+  'OpenAPI 路径变量生成参数',
+  JSON.parse(
+    toOpenApi([probe('/order/{id}', 'GET', 'OrderController')], (p) => p)
+  ).paths['/order/{id}'].get.parameters.length === 1
+);
+
+const hoverParsed = parseJava(`
+@RestController
+@RequestMapping("/audit")
+public class AuditController {
+    @GetMapping("/list")
+    public Result list() {
+        return null;
+    }
+}
+`);
+const hoverTargets = findHoverTargets(hoverParsed, 5);
+check(
+  '悬浮定位到注解行',
+  hoverTargets.length === 1 &&
+    hoverTargets[0].methodName === 'list' &&
+    hoverTargets[0].className === 'AuditController',
+  hoverTargets.map((t) => `${t.className}.${t.methodName}`).join(',')
 );
 
 console.log(`\n通过 ${passed} 项，失败 ${failed} 项`);

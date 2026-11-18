@@ -2,8 +2,8 @@ import * as vscode from 'vscode';
 import { readSettings } from '../config';
 import { Indexer } from '../indexer';
 import { Endpoint } from '../model';
-import { toJson, toMarkdown } from '../report';
 import { parseQuery, rankEndpoints } from '../search/score';
+import { exportEndpoints } from './exportFlow';
 
 const KIND_ORDER = ['rest', 'websocket', 'xxljob', 'mq', 'scheduled', 'mybatis'];
 
@@ -196,26 +196,7 @@ export class SearchPanel {
       return;
     }
 
-    const folder = vscode.workspace.workspaceFolders?.[0]?.uri;
-    const target = await vscode.window.showSaveDialog({
-      saveLabel: `导出 ${items.length} 个接口`,
-      filters: { Markdown: ['md'], JSON: ['json'] },
-      defaultUri: folder ? vscode.Uri.joinPath(folder, 'endpoints.md') : undefined
-    });
-    if (!target) {
-      return;
-    }
-
-    const relative = (filePath: string): string =>
-      vscode.workspace.asRelativePath(filePath);
-    const content = target.fsPath.toLowerCase().endsWith('.json')
-      ? toJson(items, relative)
-      : toMarkdown(items, relative);
-
-    await vscode.workspace.fs.writeFile(target, Buffer.from(content, 'utf8'));
-    vscode.window.showInformationMessage(
-      `已导出 ${items.length} 个接口到 ${target.fsPath}`
-    );
+    await exportEndpoints(items, '筛选结果');
   }
 
   private async copyEndpoint(id: string, action: string): Promise<void> {

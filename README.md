@@ -11,6 +11,8 @@ Endpoint Navigator indexes every HTTP, WebSocket, xxl-job, MQ, scheduled-task an
 - Subsequence fuzzy matching (`fomd` → `updateIntervalFromDatabase`) with character-level highlighting
 - Filters: `method:GET`, `kind:rest`, exclusions: `-delete`
 - CodeLens shows the full path above each controller method
+- Hovering a mapping annotation previews the resolved path, description and duplicate warnings
+- Export to OpenAPI 3.0 for Postman, Apifox, Insomnia and Swagger UI
 - Duplicate route detection, Markdown/JSON export of the current result set
 - Incremental, cached indexing with file watching
 
@@ -34,10 +36,21 @@ Endpoint Navigator indexes every HTTP, WebSocket, xxl-job, MQ, scheduled-task an
 - 空格分隔多个关键词，结果为 AND 关系
 - 点击 `.*` 或输入 `re:` 前缀启用正则
 - 条件过滤：`method:GET`、`kind:rest`；排除：`-delete`
-- 面板右上「导出」按当前筛选条件导出 Markdown / JSON
+- 面板右上「导出」按当前筛选条件导出，可选 Markdown、JSON 或 OpenAPI 3.0
+- 悬浮 `@GetMapping` 等映射注解可预览完整路径、中文描述与冲突提示
 - `↑` `↓` 选择，`Enter` 跳转，`Esc` 清空/关闭
 
 命令面板还提供 `Endpoint Navigator: 快速搜索（QuickPick）` 与 `Endpoint Navigator: 重建索引`。
+
+## 导入到 API 管理工具
+
+「导出接口清单」选择 OpenAPI 3.0，生成 `endpoints.openapi.json` 后：
+
+- Postman：Import → OpenAPI 3.0，按 module 自动生成文件夹
+- Apifox：导入 → OpenAPI/Swagger，中文 `summary` 会成为接口名称
+- Insomnia、Swagger UI、YApi 同理
+
+导出内容只包含 REST 接口；请求体与 query 参数无法从注解推导，生成的是可直接发请求的接口骨架，`servers` 默认指向 `http://localhost:8080`。
 
 ## 解析能力
 

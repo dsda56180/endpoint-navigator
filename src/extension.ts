@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import { EndpointCodeLensProvider } from './codelens';
+import { EndpointHoverProvider } from './hover';
 import { Indexer } from './indexer';
-import { toJson, toMarkdown } from './report';
+import { exportEndpoints } from './ui/exportFlow';
 import { SearchPanel } from './ui/panel';
 import { quickSearch } from './ui/quickpick';
 
@@ -12,6 +13,7 @@ export function activate(context: vscode.ExtensionContext): void {
     String(context.extension.packageJSON.version ?? '0')
   );
   const codeLens = new EndpointCodeLensProvider(indexer);
+  const hover = new EndpointHoverProvider(indexer);
 
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   status.command = 'endpointNavigator.search';
@@ -57,6 +59,7 @@ export function activate(context: vscode.ExtensionContext): void {
         indexed = true;
         updateStatus(endpoints.length);
         codeLens.refresh();
+        hover.refresh();
 
         const dup = indexer.duplicates;
         if (!warnedDuplicates && dup.length > 0) {
@@ -144,35 +147,11 @@ export function activate(context: vscode.ExtensionContext): void {
 
     vscode.commands.registerCommand('endpointNavigator.export', async () => {
       await ensureIndexed();
-      const all = indexer.all;
-      if (all.length === 0) {
-        vscode.window.showInformationMessage('Endpoint Navigator：没有可导出的接口');
-        return;
-      }
-
-      const folder = vscode.workspace.workspaceFolders?.[0]?.uri;
-      const target = await vscode.window.showSaveDialog({
-        saveLabel: '导出接口清单',
-        filters: { Markdown: ['md'], JSON: ['json'] },
-        defaultUri: folder ? vscode.Uri.joinPath(folder, 'endpoints.md') : undefined
-      });
-      if (!target) {
-        return;
-      }
-
-      const relative = (filePath: string): string =>
-        vscode.workspace.asRelativePath(filePath);
-      const content = target.fsPath.toLowerCase().endsWith('.json')
-        ? toJson(all, relative)
-        : toMarkdown(all, relative);
-
-      await vscode.workspace.fs.writeFile(target, Buffer.from(content, 'utf8'));
-      vscode.window.showInformationMessage(
-        `已导出 ${all.length} 个接口到 ${target.fsPath}`
-      );
+      await exportEndpoints(indexer.all);
     }),
 
-    vscode.languages.registerCodeLensProvider({ scheme: 'file', language: 'java' }, codeLens)
+    vscode.languages.registerCodeLensProvider({ scheme: 'file', language: 'java' }, codeLens),
+    vscode.languages.registerHoverProvider({ scheme: 'file', language: 'java' }, hover)
   );
 
   const watcher = vscode.workspace.createFileSystemWatcher('**/*.java');
@@ -190,6 +169,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     updateStatus(indexer.all.length);
     codeLens.refresh();
+    hover.refresh();
     SearchPanel.refresh();
   };
 
@@ -214,6 +194,7 @@ export function activate(context: vscode.ExtensionContext): void {
     indexer.dropFile(uri.fsPath);
     updateStatus(indexer.all.length);
     codeLens.refresh();
+    hover.refresh();
     SearchPanel.refresh();
   });
 

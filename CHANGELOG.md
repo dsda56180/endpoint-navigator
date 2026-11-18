@@ -1,5 +1,13 @@
 # 更新日志
 
+## 0.10.0
+
+### 新增
+
+- 导出支持 OpenAPI 3.0，可直接导入 Postman、Apifox、Insomnia、Swagger UI；按模块分组、保留中文描述、自动生成路径参数
+- 悬浮映射注解时显示完整路径、中文描述、重复映射与未解析常量，并提供「在面板中搜索」命令
+- `endpointNavigator.hover.enabled` 配置项，默认开启
+
 ## 0.9.0
 
 ### 新增
