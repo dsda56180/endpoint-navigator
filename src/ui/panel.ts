@@ -54,6 +54,7 @@ export class SearchPanel {
   private kind: string | null = null;
   private regex = false;
   private caseSensitive = false;
+  private showAll = false;
   private initialized = false;
 
   private constructor(indexer: Indexer, extensionUri: vscode.Uri, initialQuery: string) {
@@ -87,7 +88,15 @@ export class SearchPanel {
             this.kind = msg.kind ?? null;
             this.regex = !!msg.regex;
             this.caseSensitive = !!msg.caseSensitive;
+            this.showAll = false;
             this.runSearch();
+            break;
+          case 'more':
+            this.showAll = true;
+            this.runSearch();
+            break;
+          case 'copy':
+            await this.copyEndpoint(msg.id, msg.action);
             break;
           case 'open':
             await this.openEndpoint(msg.id);
@@ -131,7 +140,12 @@ export class SearchPanel {
 
     try {
       const parsed = parseQuery(this.query, this.regex, this.caseSensitive);
-      const result = rankEndpoints(this.indexer.all, parsed, this.kind, 500);
+      const result = rankEndpoints(
+        this.indexer.all,
+        parsed,
+        this.kind,
+        this.showAll ? 5000 : 500
+      );
       const showUnresolved = readSettings().showUnresolved;
       const items = showUnresolved
         ? result.items
@@ -139,7 +153,15 @@ export class SearchPanel {
       this.panel.webview.postMessage({
         type: 'results',
         items,
-        total: result.total
+        total: result.total,
+        query: {
+          mode: parsed.mode,
+          terms: parsed.terms,
+          caseSensitive: parsed.caseSensitive,
+          regex: parsed.regex
+            ? { source: parsed.regex.source, flags: parsed.regex.flags }
+            : null
+        }
       });
     } catch (err) {
       this.panel.webview.postMessage({
@@ -147,6 +169,27 @@ export class SearchPanel {
         message: (err as Error).message
       });
     }
+  }
+
+  private async copyEndpoint(id: string, action: string): Promise<void> {
+    const ep = this.indexer.all.find((e) => e.id === id);
+    if (!ep) {
+      return;
+    }
+
+    let text = '';
+    if (action === 'ref') {
+      text = `${ep.className}#${ep.methodName}`;
+    } else if (action === 'curl') {
+      text = `curl -X ${ep.httpMethod ?? 'GET'} "http://localhost:8080${ep.path}"`;
+    } else if (action === 'fileline') {
+      text = `${ep.filePath}:${ep.line}`;
+    } else {
+      text = ep.path || ep.name;
+    }
+
+    await vscode.env.clipboard.writeText(text);
+    vscode.window.setStatusBarMessage(`已复制：${text}`, 2500);
   }
 
   private async openEndpoint(id: string): Promise<void> {

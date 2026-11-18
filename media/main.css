@@ -246,3 +246,57 @@ body {
   color: var(--vscode-descriptionForeground);
   opacity: 0.8;
 }
+
+mark {
+  background: var(--vscode-editor-findMatchHighlightBackground, rgba(234, 92, 0, 0.35));
+  color: inherit;
+  border-radius: 2px;
+}
+
+.ctxmenu {
+  position: fixed;
+  z-index: 50;
+  min-width: 170px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  background: var(--vscode-menu-background, #252526);
+  border: 1px solid var(--vscode-menu-border, rgba(128, 128, 128, 0.35));
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.ctxmenu button {
+  text-align: left;
+  padding: 5px 10px;
+  border: none;
+  background: transparent;
+  color: var(--vscode-menu-foreground, #cccccc);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ctxmenu button:hover {
+  background: var(--vscode-menu-selectionBackground, #094771);
+  color: var(--vscode-menu-selectionForeground, #ffffff);
+}
+
+.more {
+  display: block;
+  margin: 10px auto 18px;
+  padding: 4px 14px;
+  border-radius: 2px;
+  border: 1px solid var(--vscode-button-background, #0e639c);
+  background: transparent;
+  color: var(--vscode-button-background, #0e639c);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.more:hover {
+  color: var(--vscode-button-foreground, #ffffff);
+  background: var(--vscode-button-background, #0e639c);
+}
+
