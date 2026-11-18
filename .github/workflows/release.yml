@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Read version
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "vsix=endpoint-navigator-$VERSION.vsix" >> "$GITHUB_OUTPUT"
+          echo "版本：$VERSION"
+
+      - name: Verify tag matches version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          if [ "$TAG" != "${{ steps.version.outputs.version }}" ]; then
+            echo "::error::标签 $GITHUB_REF_NAME 与 package.json 版本 ${{ steps.version.outputs.version }} 不一致"
+            exit 1
+          fi
+
+      - name: Package VSIX
+        run: npx --yes @vscode/vsce package --no-dependencies --allow-missing-repository --skip-license
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: ${{ steps.version.outputs.vsix }}
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "${{ steps.version.outputs.vsix }}" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            --verify-tag
+
+      - name: Publish to Open VSX
+        if: env.OVSX_PAT != ''
+        run: |
+          npx --yes ovsx create-namespace dsda56180 -p "$OVSX_PAT" || true
+          npx --yes ovsx publish "${{ steps.version.outputs.vsix }}" -p "$OVSX_PAT" --skip-duplicate
