@@ -3,7 +3,7 @@
   "displayName": "Endpoint Navigator",
   "description": "搜索并跳转 Java 项目中的 REST / WebSocket / Netty / xxl-job / MQ / 定时任务 / MyBatis Mapper 接口，支持正则与模糊搜索，支持 Swagger 中文描述反查。",
   "version": "0.1.0",
-  "publisher": "dongxin",
+  "publisher": "dsda56180",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -175,7 +175,9 @@
   "scripts": {
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "package": "node scripts/publish.mjs --check",
+    "publish:ovsx": "node scripts/publish.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.11.30",
