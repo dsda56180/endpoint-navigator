@@ -12,6 +12,7 @@ Endpoint Navigator indexes every HTTP, WebSocket, xxl-job, MQ, scheduled-task an
 - Filters: `method:GET`, `kind:rest`, exclusions: `-delete`
 - CodeLens shows the full path above each controller method
 - Hovering a mapping annotation previews the resolved path, description and duplicate warnings
+- Three switchable layouts: classic list, card and compact
 - Export to OpenAPI 3.0 for Postman, Apifox, Insomnia and Swagger UI
 - Duplicate route detection, Markdown/JSON export of the current result set
 - Incremental, cached indexing with file watching
@@ -37,6 +38,7 @@ Endpoint Navigator indexes every HTTP, WebSocket, xxl-job, MQ, scheduled-task an
 - 点击 `.*` 或输入 `re:` 前缀启用正则
 - 条件过滤：`method:GET`、`kind:rest`；排除：`-delete`
 - 面板右上「导出」按当前筛选条件导出，可选 Markdown、JSON 或 OpenAPI 3.0
+- 搜索栏样式下拉可切换「经典 / 卡片 / 紧凑」三种布局，选择会记住
 - 悬浮 `@GetMapping` 等映射注解可预览完整路径、中文描述与冲突提示
 - `↑` `↓` 选择，`Enter` 跳转，`Esc` 清空/关闭
 

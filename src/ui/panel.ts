@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { readSettings } from '../config';
+import { readSettings, UiStyle } from '../config';
 import { Indexer } from '../indexer';
 import { Endpoint } from '../model';
 import { parseQuery, rankEndpoints } from '../search/score';
@@ -53,6 +53,10 @@ export class SearchPanel {
     current?.pushStats();
   }
 
+  static applyStyle(style: string): void {
+    current?.setStyle(style);
+  }
+
   private readonly panel: vscode.WebviewPanel;
   private readonly indexer: Indexer;
   private readonly disposables: vscode.Disposable[] = [];
@@ -63,10 +67,12 @@ export class SearchPanel {
   private caseSensitive = false;
   private showAll = false;
   private initialized = false;
+  private style: UiStyle = 'classic';
 
   private constructor(indexer: Indexer, extensionUri: vscode.Uri, initialQuery: string) {
     this.indexer = indexer;
     this.query = initialQuery;
+    this.style = readSettings().uiStyle;
 
     this.panel = vscode.window.createWebviewPanel(
       'endpointNavigator',
@@ -87,6 +93,7 @@ export class SearchPanel {
           case 'ready':
             this.initialized = true;
             this.pushStats();
+            this.panel.webview.postMessage({ type: 'style', value: this.style });
             this.panel.webview.postMessage({ type: 'initial', query: this.query });
             this.runSearch();
             break;
@@ -110,6 +117,11 @@ export class SearchPanel {
             break;
           case 'export':
             await this.exportFiltered();
+            break;
+          case 'style':
+            await vscode.workspace
+              .getConfiguration('endpointNavigator')
+              .update('ui.style', this.normalizeStyle(msg.value), vscode.ConfigurationTarget.Global);
             break;
           case 'close':
             this.panel.dispose();
@@ -141,6 +153,15 @@ export class SearchPanel {
       type: 'stats',
       stats: buildStats(this.indexer.all)
     });
+  }
+
+  private normalizeStyle(value: unknown): UiStyle {
+    return value === 'card' || value === 'compact' ? value : 'classic';
+  }
+
+  private setStyle(value: string): void {
+    this.style = this.normalizeStyle(value);
+    this.panel.webview.postMessage({ type: 'style', value: this.style });
   }
 
   runSearch(): void {
@@ -264,12 +285,17 @@ export class SearchPanel {
 <link rel="stylesheet" href="${styleUri}">
 <title>Endpoint Navigator</title>
 </head>
-<body>
+<body data-style="${this.style}">
   <div class="tabs" id="tabs" role="tablist" aria-label="接口类型"></div>
   <div class="searchbar">
     <input id="q" type="text" placeholder="搜索路径 / 中文描述 / 类名；支持 method:GET、kind:rest、-排除" autocomplete="off" aria-label="搜索接口" />
     <button class="toggle" id="re" title="正则模式（也可用 re: 前缀）" aria-label="正则模式" aria-pressed="false">.*</button>
     <button class="toggle" id="case" title="区分大小写" aria-label="区分大小写" aria-pressed="false">Aa</button>
+    <select id="style" class="style-select" aria-label="界面样式" title="切换界面样式">
+      <option value="classic"${this.style === 'classic' ? ' selected' : ''}>经典</option>
+      <option value="card"${this.style === 'card' ? ' selected' : ''}>卡片</option>
+      <option value="compact"${this.style === 'compact' ? ' selected' : ''}>紧凑</option>
+    </select>
     <button class="toggle" id="export" title="导出当前筛选结果" aria-label="导出当前筛选结果">导出</button>
     <span id="count" aria-live="polite"></span>
   </div>

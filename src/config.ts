@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { CustomRule } from './model';
 
+export type UiStyle = 'classic' | 'card' | 'compact';
+
 export interface Settings {
   enabledScanners: string[];
   includeGlobs: string[];
@@ -8,6 +10,7 @@ export interface Settings {
   contextPath: string;
   showUnresolved: boolean;
   customRules: CustomRule[];
+  uiStyle: UiStyle;
 }
 
 export function readSettings(): Settings {
@@ -25,6 +28,7 @@ export function readSettings(): Settings {
     excludeGlobs: cfg.get<string>('excludeGlobs', '**/{target,build,node_modules,out,dist,.git}/**'),
     contextPath: cfg.get<string>('contextPath', ''),
     showUnresolved: cfg.get<boolean>('showUnresolved', true),
-    customRules: cfg.get<CustomRule[]>('customRules', [])
+    customRules: cfg.get<CustomRule[]>('customRules', []),
+    uiStyle: cfg.get<UiStyle>('ui.style', 'classic')
   };
 }

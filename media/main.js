@@ -6,6 +6,7 @@
   const reEl = document.getElementById('re');
   const caseEl = document.getElementById('case');
   const exportEl = document.getElementById('export');
+  const styleEl = document.getElementById('style');
   const countEl = document.getElementById('count');
   const errorEl = document.getElementById('error');
   const listEl = document.getElementById('list');
@@ -426,6 +427,17 @@
     vscode.postMessage({ type: 'export' });
   });
 
+  styleEl.addEventListener('change', function () {
+    applyStyle(styleEl.value);
+    vscode.postMessage({ type: 'style', value: styleEl.value });
+  });
+
+  function applyStyle(value) {
+    const next = value === 'card' || value === 'compact' ? value : 'classic';
+    document.body.dataset.style = next;
+    styleEl.value = next;
+  }
+
   document.addEventListener('keydown', function (e) {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -486,6 +498,11 @@
       state.items = [];
       state.total = 0;
       renderList();
+      return;
+    }
+
+    if (msg.type === 'style') {
+      applyStyle(msg.value);
       return;
     }
 

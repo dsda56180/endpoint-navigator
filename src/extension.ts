@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { EndpointCodeLensProvider } from './codelens';
+import { readSettings } from './config';
 import { EndpointHoverProvider } from './hover';
 import { Indexer } from './indexer';
 import { exportEndpoints } from './ui/exportFlow';
@@ -201,11 +202,28 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     watcher,
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('endpointNavigator')) {
+      if (e.affectsConfiguration('endpointNavigator.ui.style')) {
+        SearchPanel.applyStyle(readSettings().uiStyle);
+      }
+      if (e.affectsConfiguration('endpointNavigator.codeLens.enabled')) {
+        codeLens.refresh();
+      }
+
+      // 只有影响扫描结果的配置才需要重建索引
+      const reindexKeys = [
+        'enabledScanners',
+        'includeGlobs',
+        'excludeGlobs',
+        'contextPath',
+        'showUnresolved',
+        'customRules'
+      ];
+      if (reindexKeys.some((key) => e.affectsConfiguration(`endpointNavigator.${key}`))) {
         indexer.clear();
         indexed = false;
         void ensureIndexed().then(() => SearchPanel.refresh());
         codeLens.refresh();
+        hover.refresh();
       }
     }),
     status

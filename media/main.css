@@ -300,3 +300,92 @@ mark {
   background: var(--vscode-button-background, #0e639c);
 }
 
+.style-select {
+  flex: 0 0 auto;
+  height: 26px;
+  padding: 0 4px;
+  border-radius: 2px;
+  border: 1px solid var(--vscode-dropdown-border, var(--vscode-input-border, rgba(128, 128, 128, 0.35)));
+  background: var(--vscode-dropdown-background, var(--vscode-input-background));
+  color: var(--vscode-dropdown-foreground, var(--vscode-foreground));
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* 方案二：卡片式，突出中文描述与模块信息 */
+body[data-style="card"] .list {
+  padding: 8px;
+}
+
+body[data-style="card"] .row {
+  grid-template-columns: 74px 1fr auto;
+  height: auto;
+  min-height: 58px;
+  padding: 10px 12px;
+  margin: 0 4px 8px;
+  border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.28));
+  border-left-width: 3px;
+  border-radius: 5px;
+  background: var(--vscode-editorWidget-background, rgba(128, 128, 128, 0.06));
+}
+
+body[data-style="card"] .badge {
+  max-width: 74px;
+}
+
+body[data-style="card"] .title {
+  font-size: 13.5px;
+}
+
+body[data-style="card"] .desc {
+  margin-top: 5px;
+  font-size: 12px;
+}
+
+body[data-style="card"] .meta {
+  align-self: start;
+  margin-top: 2px;
+}
+
+/* 方案三：紧凑单行，适合快速扫读 */
+body[data-style="compact"] {
+  --row-height: 26px;
+}
+
+body[data-style="compact"] .row {
+  grid-template-columns: 54px 1fr 190px;
+  gap: 8px;
+  padding: 0 10px;
+}
+
+body[data-style="compact"] .badge {
+  max-width: 54px;
+  font-size: 9px;
+  padding: 1px 4px;
+}
+
+body[data-style="compact"] .main {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
+}
+
+body[data-style="compact"] .title {
+  flex: 0 1 auto;
+  max-width: 60%;
+  font-size: 12px;
+}
+
+body[data-style="compact"] .desc {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 11px;
+}
+
+body[data-style="compact"] .meta {
+  max-width: 190px;
+  font-size: 10.5px;
+}
+
+
