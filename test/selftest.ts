@@ -158,5 +158,140 @@ check(
   implFound.map((ep) => ep.path).join(',')
 );
 
+const filterProbes = [
+  probe('/audit/list', 'GET', 'A'),
+  probe('/audit/delete', 'POST', 'B'),
+  probe('/audit/delete', 'GET', 'C')
+];
+check(
+  'method: 过滤',
+  rankEndpoints(filterProbes, parseQuery('method:GET', false, false), null, 10).total === 2
+);
+check(
+  'kind: 过滤',
+  rankEndpoints(filterProbes, parseQuery('kind:xxljob', false, false), null, 10).total === 0
+);
+check(
+  '排除词 -delete',
+  rankEndpoints(filterProbes, parseQuery('-delete', false, false), null, 10).items.every(
+    (ep) => ep.path === '/audit/list'
+  )
+);
+check(
+  '条件与关键词组合',
+  rankEndpoints(filterProbes, parseQuery('method:GET -delete audit', false, false), null, 10)
+    .total === 1
+);
+
+const xxlJobParsed = parseJava(`
+public class JobHandler {
+    @XxlJob("autoInspectionRoundJobHandler")
+    public void autoInspection() {
+    }
+}
+`);
+const xxlJobScanner = ALL_SCANNERS.find((s) => s.id === 'xxljob');
+const xxlJobFound = xxlJobScanner
+  ? xxlJobScanner.scan(
+      {
+        filePath: '/tmp/JobHandler.java',
+        module: '',
+        constants: xxlJobParsed.constants,
+        parsed: xxlJobParsed,
+        contextPath: ''
+      },
+      { rules: [] }
+    )
+  : [];
+check(
+  'xxl-job 扫描',
+  xxlJobFound.length === 1 && xxlJobFound[0].path === 'autoInspectionRoundJobHandler',
+  xxlJobFound.map((ep) => ep.path).join(',')
+);
+
+const mapperParsed = parseJava(`
+@Mapper
+public interface UserMapper {
+    int insert(User user);
+    User selectById(Long id);
+}
+`);
+const mapperScanner = ALL_SCANNERS.find((s) => s.id === 'mybatis');
+const mapperFound = mapperScanner
+  ? mapperScanner.scan(
+      {
+        filePath: '/tmp/UserMapper.java',
+        module: '',
+        constants: mapperParsed.constants,
+        parsed: mapperParsed,
+        contextPath: ''
+      },
+      { rules: [] }
+    )
+  : [];
+check('MyBatis Mapper 扫描', mapperFound.length === 2, `实际 ${mapperFound.length}`);
+
+const wsParsed = parseJava(`
+public class WsConfig {
+    public void configure() {
+        registry.addEndpoint("/ws").withSockJS();
+    }
+    @MessageMapping("/chat.send")
+    public void send(String msg) {
+    }
+}
+`);
+const wsScanner = ALL_SCANNERS.find((s) => s.id === 'stomp');
+const wsFound = wsScanner
+  ? wsScanner.scan(
+      {
+        filePath: '/tmp/WsConfig.java',
+        module: '',
+        constants: wsParsed.constants,
+        parsed: wsParsed,
+        contextPath: ''
+      },
+      { rules: [] }
+    )
+  : [];
+check(
+  'WebSocket 端点扫描',
+  wsFound.some((ep) => ep.path === '/ws') && wsFound.some((ep) => ep.path === '/chat.send'),
+  wsFound.map((ep) => ep.path).join(',')
+);
+
+const mqParsed = parseJava(`
+public class Listener {
+    @RabbitListener(queues = "order.queue")
+    public void onOrder(String msg) {
+    }
+    @KafkaListener(topics = {"topic.a", "topic.b"})
+    public void onKafka(String msg) {
+    }
+    @Scheduled(cron = "0 0 * * * ?")
+    public void tick() {
+    }
+}
+`);
+const mqScanner = ALL_SCANNERS.find((s) => s.id === 'messaging');
+const mqFound = mqScanner
+  ? mqScanner.scan(
+      {
+        filePath: '/tmp/Listener.java',
+        module: '',
+        constants: mqParsed.constants,
+        parsed: mqParsed,
+        contextPath: ''
+      },
+      { rules: [] }
+    )
+  : [];
+check(
+  'RabbitMQ / Kafka / 定时任务扫描',
+  mqFound.filter((ep) => ep.kind === 'mq').length === 3 &&
+    mqFound.filter((ep) => ep.kind === 'scheduled').length === 1,
+  mqFound.map((ep) => `${ep.kind}:${ep.path}`).join(',')
+);
+
 console.log(`\n通过 ${passed} 项，失败 ${failed} 项`);
 process.exitCode = failed > 0 ? 1 : 0;

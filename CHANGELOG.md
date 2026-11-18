@@ -1,5 +1,17 @@
 # 更新日志
 
+## 0.9.0
+
+### 新增
+
+- 搜索语法：`method:GET` 方法过滤、`kind:rest` 类型过滤、`-关键词` 排除
+- 自检覆盖 xxl-job、MyBatis Mapper、WebSocket、RabbitMQ / Kafka、定时任务扫描器，共 23 项
+- README 增加英文简介
+
+### 变更
+
+- 标签页、搜索框、正则与大小写按钮补充 ARIA 属性，结果计数使用 `aria-live`
+
 ## 0.8.0
 
 ### 新增

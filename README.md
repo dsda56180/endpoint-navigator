@@ -2,6 +2,18 @@
 
 在 Java 项目中搜索并跳转各类接口入口。不依赖任何 Java 语言服务器，改用自研的字符级注解解析，因此可以独立工作。
 
+## English
+
+Endpoint Navigator indexes every HTTP, WebSocket, xxl-job, MQ, scheduled-task and MyBatis Mapper entry point in a Java workspace, then lets you search them from one panel. It parses annotations character by character instead of relying on a Java language server, so it works even when no JDK or Spring tooling is configured.
+
+- Search by URL, Swagger description (Chinese included), class or method name
+- Multiple space-separated keywords are ANDed; `re:` prefix or the `.*` button enables regular expressions
+- Subsequence fuzzy matching (`fomd` → `updateIntervalFromDatabase`) with character-level highlighting
+- Filters: `method:GET`, `kind:rest`, exclusions: `-delete`
+- CodeLens shows the full path above each controller method
+- Duplicate route detection, Markdown/JSON export of the current result set
+- Incremental, cached indexing with file watching
+
 ## 支持的类型
 
 | 类型 | 识别方式 |
@@ -21,6 +33,8 @@
 - 搜索框支持：路径、中文描述（Swagger `@ApiOperation`）、类名、方法名
 - 空格分隔多个关键词，结果为 AND 关系
 - 点击 `.*` 或输入 `re:` 前缀启用正则
+- 条件过滤：`method:GET`、`kind:rest`；排除：`-delete`
+- 面板右上「导出」按当前筛选条件导出 Markdown / JSON
 - `↑` `↓` 选择，`Enter` 跳转，`Esc` 清空/关闭
 
 命令面板还提供 `Endpoint Navigator: 快速搜索（QuickPick）` 与 `Endpoint Navigator: 重建索引`。

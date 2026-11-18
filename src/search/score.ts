@@ -6,6 +6,12 @@ export interface ParsedQuery {
   regex?: RegExp;
   terms: string[];
   caseSensitive: boolean;
+  /** method:GET 这类过滤条件，值为大写 */
+  methods: string[];
+  /** kind:rest 这类过滤条件 */
+  kinds: string[];
+  /** -排除词 */
+  excludes: string[];
 }
 
 export function parseQuery(raw: string, regexFlag: boolean, caseSensitive: boolean): ParsedQuery {
@@ -15,7 +21,16 @@ export function parseQuery(raw: string, regexFlag: boolean, caseSensitive: boole
 
   if (regexFlag || explicit) {
     if (!body) {
-      return { raw: trimmed, mode: 'regex', regex: undefined, terms: [], caseSensitive };
+      return {
+        raw: trimmed,
+        mode: 'regex',
+        regex: undefined,
+        terms: [],
+        caseSensitive,
+        methods: [],
+        kinds: [],
+        excludes: []
+      };
     }
     try {
       const flags = caseSensitive ? '' : 'i';
@@ -24,20 +39,38 @@ export function parseQuery(raw: string, regexFlag: boolean, caseSensitive: boole
         mode: 'regex',
         regex: new RegExp(body, flags),
         terms: [],
-        caseSensitive
+        caseSensitive,
+        methods: [],
+        kinds: [],
+        excludes: []
       };
     } catch (err) {
       throw new Error(`正则表达式无效：${(err as Error).message}`);
     }
   }
 
-  const terms = trimmed
-    .split(/\s+/)
-    .map((t) => t.trim())
-    .filter((t) => t.length > 0)
-    .map((t) => (caseSensitive ? t : t.toLowerCase()));
+  const terms: string[] = [];
+  const methods: string[] = [];
+  const kinds: string[] = [];
+  const excludes: string[] = [];
 
-  return { raw: trimmed, mode: 'text', terms, caseSensitive };
+  for (const token of trimmed.split(/\s+/)) {
+    if (!token) {
+      continue;
+    }
+    const normalized = caseSensitive ? token : token.toLowerCase();
+    if (token.length > 1 && token.startsWith('-')) {
+      excludes.push(normalized.slice(1));
+    } else if (token.length > 7 && normalized.startsWith('method:')) {
+      methods.push(token.slice(7).toUpperCase());
+    } else if (token.length > 5 && normalized.startsWith('kind:')) {
+      kinds.push(normalized.slice(5));
+    } else {
+      terms.push(normalized);
+    }
+  }
+
+  return { raw: trimmed, mode: 'text', terms, caseSensitive, methods, kinds, excludes };
 }
 
 const ASCII_WORD = /^[A-Za-z0-9_]+$/;
@@ -153,6 +186,31 @@ export function scoreEndpoint(ep: Endpoint, query: ParsedQuery): number {
       }
     }
     return 0;
+  }
+
+  if (
+    query.methods.length > 0 &&
+    !query.methods.includes((ep.httpMethod ?? '').toUpperCase())
+  ) {
+    return 0;
+  }
+  if (query.kinds.length > 0 && !query.kinds.includes(ep.kind.toLowerCase())) {
+    return 0;
+  }
+  if (query.excludes.length > 0) {
+    const haystack = [
+      ep.path,
+      ep.description ?? '',
+      `${ep.className}.${ep.methodName}`,
+      ep.tags.join(' ')
+    ]
+      .join(' ')
+      .toLowerCase();
+    for (const ex of query.excludes) {
+      if (haystack.includes(ex)) {
+        return 0;
+      }
+    }
   }
 
   if (query.terms.length === 0) {

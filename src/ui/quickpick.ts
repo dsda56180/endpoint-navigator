@@ -20,7 +20,7 @@ function describe(ep: Endpoint): string {
 
 export async function quickSearch(indexer: Indexer): Promise<void> {
   const qp = vscode.window.createQuickPick<PickItem>();
-  qp.placeholder = '搜索接口路径 / 中文描述 / 类名；以 re: 开头或开启正则模式';
+  qp.placeholder = '搜索路径 / 中文描述 / 类名；支持 method:GET、kind:rest、-排除，re: 开头为正则';
   qp.matchOnDescription = false;
   qp.title = `Endpoint Navigator（${indexer.all.length} 个接口）`;
 

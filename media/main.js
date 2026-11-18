@@ -49,6 +49,8 @@
     const all = document.createElement('button');
     all.className = 'tab' + (state.kind === null ? ' active' : '');
     all.textContent = 'ALL';
+    all.setAttribute('role', 'tab');
+    all.setAttribute('aria-selected', state.kind === null ? 'true' : 'false');
     const allCount = document.createElement('span');
     allCount.className = 'count';
     allCount.textContent = String(state.stats.reduce(function (s, t) { return s + t.count; }, 0));
@@ -64,6 +66,8 @@
       const btn = document.createElement('button');
       btn.className = 'tab' + (state.kind === tab.kind ? ' active' : '');
       btn.textContent = tab.label;
+      btn.setAttribute('role', 'tab');
+      btn.setAttribute('aria-selected', state.kind === tab.kind ? 'true' : 'false');
       const c = document.createElement('span');
       c.className = 'count';
       c.textContent = String(tab.count);
@@ -407,12 +411,14 @@
   reEl.addEventListener('click', function () {
     state.regex = !state.regex;
     reEl.classList.toggle('on', state.regex);
+    reEl.setAttribute('aria-pressed', state.regex ? 'true' : 'false');
     sendSearch(true);
   });
 
   caseEl.addEventListener('click', function () {
     state.caseSensitive = !state.caseSensitive;
     caseEl.classList.toggle('on', state.caseSensitive);
+    caseEl.setAttribute('aria-pressed', state.caseSensitive ? 'true' : 'false');
     sendSearch(true);
   });
 

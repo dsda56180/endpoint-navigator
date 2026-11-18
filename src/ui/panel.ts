@@ -284,13 +284,13 @@ export class SearchPanel {
 <title>Endpoint Navigator</title>
 </head>
 <body>
-  <div class="tabs" id="tabs"></div>
+  <div class="tabs" id="tabs" role="tablist" aria-label="接口类型"></div>
   <div class="searchbar">
-    <input id="q" type="text" placeholder="搜索接口路径 / 中文描述 / 类名，空格分隔多个关键词" autocomplete="off" />
-    <button class="toggle" id="re" title="正则模式（也可用 re: 前缀）">.*</button>
-    <button class="toggle" id="case" title="区分大小写">Aa</button>
-    <button class="toggle" id="export" title="导出当前筛选结果">导出</button>
-    <span id="count"></span>
+    <input id="q" type="text" placeholder="搜索路径 / 中文描述 / 类名；支持 method:GET、kind:rest、-排除" autocomplete="off" aria-label="搜索接口" />
+    <button class="toggle" id="re" title="正则模式（也可用 re: 前缀）" aria-label="正则模式" aria-pressed="false">.*</button>
+    <button class="toggle" id="case" title="区分大小写" aria-label="区分大小写" aria-pressed="false">Aa</button>
+    <button class="toggle" id="export" title="导出当前筛选结果" aria-label="导出当前筛选结果">导出</button>
+    <span id="count" aria-live="polite"></span>
   </div>
   <div class="error" id="error"></div>
   <div class="list" id="list" role="listbox"></div>
