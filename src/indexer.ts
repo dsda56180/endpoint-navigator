@@ -51,11 +51,7 @@ export class Indexer {
   }
 
   dropFile(filePath: string): void {
-    for (const key of Array.from(this.cache.keys())) {
-      if (key.includes(filePath.replace(/\\/g, '/'))) {
-        this.cache.delete(key);
-      }
-    }
+    this.cache.delete(filePath);
     this.endpoints = this.endpoints.filter((ep) => ep.filePath !== filePath);
   }
 
@@ -116,7 +112,7 @@ export class Indexer {
       if (token?.isCancellationRequested) {
         return;
       }
-      const key = uri.toString();
+      const key = uri.fsPath;
       let version = 0;
       try {
         const stat = await vscode.workspace.fs.stat(uri);
@@ -168,10 +164,11 @@ export class Indexer {
     return collected;
   }
 
-  async refreshFile(uri: vscode.Uri): Promise<void> {    const settings = readSettings();
+  async refreshFile(uri: vscode.Uri): Promise<void> {
+    const settings = readSettings();
     const scanners = selectScanners(settings.enabledScanners);
     const options = { rules: settings.customRules };
-    const key = uri.toString();
+    const key = uri.fsPath;
 
     try {
       const raw = await vscode.workspace.fs.readFile(uri);

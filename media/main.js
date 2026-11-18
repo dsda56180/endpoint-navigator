@@ -84,6 +84,9 @@
 
   function renderList() {
     listEl.innerHTML = '';
+    countEl.textContent = state.total > state.items.length
+      ? state.items.length + '/' + state.total
+      : String(state.total);
 
     if (state.items.length === 0) {
       const empty = document.createElement('div');
@@ -162,9 +165,6 @@
     });
 
     listEl.appendChild(frag);
-    countEl.textContent = state.total > state.items.length
-      ? state.items.length + '/' + state.total
-      : String(state.total);
   }
 
   function highlight() {
