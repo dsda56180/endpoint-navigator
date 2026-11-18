@@ -1,24 +1,37 @@
 import * as vscode from 'vscode';
+import { applyConstants, stringLiteral } from './analysis/constants';
 import { DuplicateGroup, findDuplicates } from './analysis/duplicates';
+import { applyInheritance, IfaceInfo, ifacesOf } from './analysis/inheritance';
 import { readSettings, Settings } from './config';
 import { parseJava } from './java/parser';
-import { Endpoint, ScanContext } from './model';
+import { AnnotationNode, Endpoint, ParsedFile, ScanContext } from './model';
 import { selectScanners } from './registry';
 
 interface FileCache {
   version: number;
   endpoints: Endpoint[];
+  constants: Array<[string, string]>;
+  ifaces: IfaceInfo[];
+}
+
+interface PersistedEntry {
+  mtime: number;
+  endpoints: Endpoint[];
+  constants: Array<[string, string]>;
+  ifaces: IfaceInfo[];
 }
 
 interface PersistedCache {
   version: number;
   settingsKey: string;
-  entries: Record<string, { mtime: number; endpoints: Endpoint[] }>;
+  entries: Record<string, PersistedEntry>;
 }
 
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 const CACHE_FILE = 'index-cache.json';
 const CONCURRENCY = 8;
+
+const DECODER = new TextDecoder('utf-8');
 
 async function mapLimit<T, R>(
   items: T[],
@@ -52,16 +65,54 @@ export class Indexer {
   private settingsKeyValue = '';
   private persistTimer?: ReturnType<typeof setTimeout>;
 
+  get all(): Endpoint[] {
+    return this.endpoints;
+  }
+
+  get duplicates(): DuplicateGroup[] {
+    return this.duplicateGroups;
+  }
+
   attachStorage(dir: vscode.Uri): void {
     this.storageDir = dir;
   }
 
-  private describeSettings(settings: Settings): string {
+  clear(): void {
+    this.cache.clear();
+    this.endpoints = [];
+    this.duplicateGroups = [];
+    this.moduleDirs = [];
+    this.building = null;
+  }
+
+  dropFile(filePath: string): void {
+    this.cache.delete(filePath);
+    this.endpoints = this.endpoints.filter((ep) => ep.filePath !== filePath);
+    this.duplicateGroups = findDuplicates(this.endpoints);
+    this.schedulePersist();
+  }
+
+  async build(
+    onProgress?: (done: number, total: number) => void,
+    token?: vscode.CancellationToken
+  ): Promise<Endpoint[]> {
+    if (this.building) {
+      return this.building;
+    }
+    this.building = this.doBuild(onProgress, token).finally(() => {
+      this.building = null;
+    });
+    return this.building;
+  }
+
+  // ---- 持久化 ----
+
+  private describeSettings(settings: Settings, contextPath: string): string {
     return JSON.stringify({
       scanners: settings.enabledScanners,
       include: settings.includeGlobs,
       exclude: settings.excludeGlobs,
-      contextPath: settings.contextPath,
+      contextPath,
       rules: settings.customRules
     });
   }
@@ -74,12 +125,17 @@ export class Indexer {
       const raw = await vscode.workspace.fs.readFile(
         vscode.Uri.joinPath(this.storageDir, CACHE_FILE)
       );
-      const data = JSON.parse(new TextDecoder('utf-8').decode(raw)) as PersistedCache;
+      const data = JSON.parse(DECODER.decode(raw)) as PersistedCache;
       if (data.version !== CACHE_VERSION || data.settingsKey !== key) {
         return;
       }
       for (const [file, entry] of Object.entries(data.entries)) {
-        this.cache.set(file, { version: entry.mtime, endpoints: entry.endpoints });
+        this.cache.set(file, {
+          version: entry.mtime,
+          endpoints: entry.endpoints,
+          constants: entry.constants ?? [],
+          ifaces: entry.ifaces ?? []
+        });
       }
     } catch {
       // 首次运行或缓存损坏，正常全量扫描
@@ -104,9 +160,14 @@ export class Indexer {
     }
     try {
       await vscode.workspace.fs.createDirectory(this.storageDir);
-      const entries: Record<string, { mtime: number; endpoints: Endpoint[] }> = {};
+      const entries: Record<string, PersistedEntry> = {};
       for (const [file, entry] of this.cache.entries()) {
-        entries[file] = { mtime: entry.version, endpoints: entry.endpoints };
+        entries[file] = {
+          mtime: entry.version,
+          endpoints: entry.endpoints,
+          constants: entry.constants,
+          ifaces: entry.ifaces
+        };
       }
       const payload: PersistedCache = {
         version: CACHE_VERSION,
@@ -122,40 +183,81 @@ export class Indexer {
     }
   }
 
-  get all(): Endpoint[] {
-    return this.endpoints;
-  }
+  // ---- 解析辅助 ----
 
-  get duplicates(): DuplicateGroup[] {
-    return this.duplicateGroups;
-  }
-
-  clear(): void {
-    this.cache.clear();
-    this.endpoints = [];
-    this.duplicateGroups = [];
-    this.moduleDirs = [];
-    this.building = null;
-  }
-
-  dropFile(filePath: string): void {
-    this.cache.delete(filePath);
-    this.endpoints = this.endpoints.filter((ep) => ep.filePath !== filePath);
-    this.duplicateGroups = findDuplicates(this.endpoints);
-  }
-
-  async build(
-    onProgress?: (done: number, total: number) => void,
-    token?: vscode.CancellationToken
-  ): Promise<Endpoint[]> {
-    if (this.building) {
-      return this.building;
+  private collectConstants(): Map<string, string> {
+    const values = new Map<string, Set<string>>();
+    for (const entry of this.cache.values()) {
+      for (const [name, raw] of entry.constants) {
+        const literal = stringLiteral(raw);
+        if (literal === undefined) {
+          continue;
+        }
+        const set = values.get(name) ?? new Set<string>();
+        set.add(literal);
+        values.set(name, set);
+      }
     }
-    this.building = this.doBuild(onProgress, token).finally(() => {
-      this.building = null;
-    });
-    return this.building;
+
+    const resolved = new Map<string, string>();
+    for (const [name, set] of values.entries()) {
+      if (set.size === 1) {
+        resolved.set(name, set.values().next().value as string);
+      }
+    }
+    return resolved;
   }
+
+  private buildIfaceRegistry(
+    extra: Array<IfaceInfo[]> = []
+  ): Map<string, Map<string, AnnotationNode[]>> {
+    const registry = new Map<string, Map<string, AnnotationNode[]>>();
+    const add = (ifaces: IfaceInfo[]): void => {
+      for (const iface of ifaces) {
+        let methods = registry.get(iface.name);
+        if (!methods) {
+          methods = new Map<string, AnnotationNode[]>();
+          registry.set(iface.name, methods);
+        }
+        for (const method of iface.methods) {
+          methods.set(method.name, method.annotations);
+        }
+      }
+    };
+
+    for (const entry of this.cache.values()) {
+      add(entry.ifaces);
+    }
+    for (const list of extra) {
+      add(list);
+    }
+    return registry;
+  }
+
+  private async resolveContextPath(settings: Settings): Promise<string> {
+    if (settings.contextPath) {
+      return settings.contextPath;
+    }
+    try {
+      const files = await vscode.workspace.findFiles(
+        '**/application{,-*}.{yml,yaml,properties}',
+        '**/{target,build,node_modules,out,dist,.git}/**',
+        20
+      );
+      for (const uri of files) {
+        const text = DECODER.decode(await vscode.workspace.fs.readFile(uri));
+        const match = /server\.servlet\.context-path\s*[:=]\s*['"]?([^'"\s\r\n]+)/.exec(text);
+        if (match) {
+          return match[1].trim();
+        }
+      }
+    } catch {
+      // 读取失败按无前缀处理
+    }
+    return '';
+  }
+
+  // ---- 模块信息 ----
 
   private async loadModuleDirs(): Promise<void> {
     const poms = await vscode.workspace.findFiles('**/pom.xml', '**/{target,node_modules,.git}/**', 500);
@@ -177,6 +279,8 @@ export class Indexer {
     return '';
   }
 
+  // ---- 主流程 ----
+
   private async doBuild(
     onProgress?: (done: number, total: number) => void,
     token?: vscode.CancellationToken
@@ -184,8 +288,9 @@ export class Indexer {
     const settings: Settings = readSettings();
     const scanners = selectScanners(settings.enabledScanners);
     const options = { rules: settings.customRules };
+    const contextPath = await this.resolveContextPath(settings);
 
-    this.settingsKeyValue = this.describeSettings(settings);
+    this.settingsKeyValue = this.describeSettings(settings, contextPath);
     await this.loadPersisted(this.settingsKeyValue);
     await this.loadModuleDirs();
 
@@ -197,6 +302,8 @@ export class Indexer {
     const files = await vscode.workspace.findFiles(include, settings.excludeGlobs, 20000);
 
     const collected: Endpoint[] = [];
+    const parsedFiles = new Map<string, ParsedFile>();
+    const freshMeta = new Map<string, { version: number; constants: Array<[string, string]>; ifaces: IfaceInfo[] }>();
     let done = 0;
 
     await mapLimit(files, CONCURRENCY, async (uri) => {
@@ -206,8 +313,7 @@ export class Indexer {
       const key = uri.fsPath;
       let version = 0;
       try {
-        const stat = await vscode.workspace.fs.stat(uri);
-        version = stat.mtime;
+        version = (await vscode.workspace.fs.stat(uri)).mtime;
       } catch {
         version = 0;
       }
@@ -223,26 +329,14 @@ export class Indexer {
       }
 
       try {
-        const raw = await vscode.workspace.fs.readFile(uri);
-        const text = new TextDecoder('utf-8').decode(raw);
+        const text = DECODER.decode(await vscode.workspace.fs.readFile(uri));
         const parsed = parseJava(text);
-        const ctx: ScanContext = {
-          filePath: uri.fsPath,
-          module: this.moduleOf(uri.fsPath),
-          constants: parsed.constants,
-          parsed,
-          contextPath: settings.contextPath
-        };
-
-        const found: Endpoint[] = [];
-        for (const scanner of scanners) {
-          found.push(...scanner.scan(ctx, options));
-        }
-
-        this.cache.set(key, { version, endpoints: found });
-        for (const ep of found) {
-          collected.push(ep);
-        }
+        parsedFiles.set(key, parsed);
+        freshMeta.set(key, {
+          version,
+          constants: Array.from(parsed.constants.entries()),
+          ifaces: ifacesOf(parsed)
+        });
       } catch {
         // 单文件失败不影响整体
       }
@@ -251,10 +345,46 @@ export class Indexer {
       onProgress?.(done, files.length);
     });
 
-    this.endpoints = collected;
-    this.duplicateGroups = findDuplicates(collected);
+    const registry = this.buildIfaceRegistry(
+      Array.from(freshMeta.values()).map((meta) => meta.ifaces)
+    );
+
+    for (const [key, parsed] of parsedFiles.entries()) {
+      if (token?.isCancellationRequested) {
+        break;
+      }
+      applyInheritance(parsed, registry);
+
+      const meta = freshMeta.get(key);
+      const ctx: ScanContext = {
+        filePath: key,
+        module: this.moduleOf(key),
+        constants: parsed.constants,
+        parsed,
+        contextPath
+      };
+
+      const found: Endpoint[] = [];
+      for (const scanner of scanners) {
+        found.push(...scanner.scan(ctx, options));
+      }
+
+      this.cache.set(key, {
+        version: meta?.version ?? 0,
+        endpoints: found,
+        constants: meta?.constants ?? [],
+        ifaces: meta?.ifaces ?? []
+      });
+      for (const ep of found) {
+        collected.push(ep);
+      }
+    }
+
+    const constants = this.collectConstants();
+    this.endpoints = collected.map((ep) => applyConstants(ep, constants));
+    this.duplicateGroups = findDuplicates(this.endpoints);
     this.schedulePersist();
-    return collected;
+    return this.endpoints;
   }
 
   async refreshFile(uri: vscode.Uri): Promise<void> {
@@ -264,15 +394,19 @@ export class Indexer {
     const key = uri.fsPath;
 
     try {
-      const raw = await vscode.workspace.fs.readFile(uri);
-      const text = new TextDecoder('utf-8').decode(raw);
+      const text = DECODER.decode(await vscode.workspace.fs.readFile(uri));
       const parsed = parseJava(text);
+      const ifaces = ifacesOf(parsed);
+      const registry = this.buildIfaceRegistry([ifaces]);
+      applyInheritance(parsed, registry);
+
+      const contextPath = await this.resolveContextPath(settings);
       const ctx: ScanContext = {
-        filePath: uri.fsPath,
-        module: this.moduleOf(uri.fsPath),
+        filePath: key,
+        module: this.moduleOf(key),
         constants: parsed.constants,
         parsed,
-        contextPath: settings.contextPath
+        contextPath
       };
 
       const found: Endpoint[] = [];
@@ -280,11 +414,24 @@ export class Indexer {
         found.push(...scanner.scan(ctx, options));
       }
 
-      const stat = await vscode.workspace.fs.stat(uri);
-      this.cache.set(key, { version: stat.mtime, endpoints: found });
+      let version = 0;
+      try {
+        version = (await vscode.workspace.fs.stat(uri)).mtime;
+      } catch {
+        version = 0;
+      }
 
-      this.endpoints = this.endpoints.filter((ep) => ep.filePath !== uri.fsPath);
-      this.endpoints.push(...found);
+      this.cache.set(key, {
+        version,
+        endpoints: found,
+        constants: Array.from(parsed.constants.entries()),
+        ifaces
+      });
+
+      const constants = this.collectConstants();
+      this.endpoints = this.endpoints
+        .filter((ep) => ep.filePath !== key)
+        .concat(found.map((ep) => applyConstants(ep, constants)));
       this.duplicateGroups = findDuplicates(this.endpoints);
       this.schedulePersist();
     } catch {

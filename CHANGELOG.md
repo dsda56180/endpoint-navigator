@@ -1,5 +1,21 @@
 # 更新日志
 
+## 0.6.0
+
+### 新增
+
+- 跨文件常量解析：`ApiConstants.PATH` 这类引用按末段唯一匹配取值，歧义时保持未解析
+- 接口继承解析：实现类方法无映射注解时，继承接口同名方法上的映射
+- `server.servlet.context-path` 自动从 `application.yml` / `.properties` 读取，配置项优先
+
+### 修复
+
+- VSIX 不再打包 `test/` 与 `dist/selftest.js`
+
+### 变更
+
+- 索引缓存版本升至 2，缓存结构包含常量与接口信息
+
 ## 0.5.0
 
 ### 新增

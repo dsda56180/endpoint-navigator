@@ -1,9 +1,11 @@
 node_modules
 scripts
+test
 src
 tsconfig.json
 esbuild.mjs
 dist/devscan.js
+dist/selftest.js
 .gitignore
 .github
 *.vsix

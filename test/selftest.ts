@@ -1,6 +1,8 @@
+import { applyConstants } from '../src/analysis/constants';
 import { findDuplicates } from '../src/analysis/duplicates';
+import { applyInheritance, ifacesOf } from '../src/analysis/inheritance';
 import { parseJava } from '../src/java/parser';
-import { Endpoint, ScanContext } from '../src/model';
+import { AnnotationNode, Endpoint, ScanContext } from '../src/model';
 import { ALL_SCANNERS } from '../src/registry';
 import { parseQuery, rankEndpoints } from '../src/search/score';
 
@@ -105,6 +107,52 @@ const duplicates = findDuplicates([
 ]);
 check('重复检测大小写与尾斜杠归一', duplicates.length === 1 && duplicates[0].endpoints.length === 2);
 check('不同 method 不算重复', findDuplicates([probe('/x', 'GET', 'A'), probe('/x', 'POST', 'B')]).length === 0);
+
+const withConst: Endpoint = {
+  ...probe('/api/{ApiConstants.VERSION}/list', 'GET', 'X'),
+  unresolved: ['ApiConstants.VERSION']
+};
+const resolved = applyConstants(withConst, new Map([['VERSION', 'v2']]));
+check('跨文件常量按末段解析', resolved.path === '/api/v2/list', resolved.path);
+check(
+  '无匹配常量保留占位',
+  applyConstants(withConst, new Map()).path === '/api/{ApiConstants.VERSION}/list'
+);
+
+const ifaceParsed = parseJava(`
+public interface AuditApi {
+    @GetMapping("/list")
+    Result list();
+}
+`);
+
+const implParsed = parseJava(`
+@RestController
+@RequestMapping("/audit")
+public class AuditController implements AuditApi {
+    public Result list() { return null; }
+}
+`);
+
+const registry = new Map<string, Map<string, AnnotationNode[]>>();
+for (const info of ifacesOf(ifaceParsed)) {
+  registry.set(info.name, new Map(info.methods.map((m) => [m.name, m.annotations])));
+}
+applyInheritance(implParsed, registry);
+
+const implCtx: ScanContext = {
+  filePath: '/tmp/AuditController.java',
+  module: 'demo',
+  constants: implParsed.constants,
+  parsed: implParsed,
+  contextPath: ''
+};
+const implFound: Endpoint[] = restScanner ? restScanner.scan(implCtx, { rules: [] }) : [];
+check(
+  '接口映射被实现类继承',
+  implFound.some((ep) => ep.path === '/audit/list'),
+  implFound.map((ep) => ep.path).join(',')
+);
 
 console.log(`\n通过 ${passed} 项，失败 ${failed} 项`);
 process.exitCode = failed > 0 ? 1 : 0;
