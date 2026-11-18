@@ -87,6 +87,69 @@
     return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
+  // 与评分逻辑一致：按分隔符切段，逐字符做子序列匹配，命中字符逐个标记
+  function fuzzyRanges(text, term, caseSensitive) {
+    var ranges = [];
+    if (term.length < 3) {
+      return ranges;
+    }
+
+    var need = caseSensitive ? term : term.toLowerCase();
+    var separator = /[/\s._-]+/g;
+    var bounds = [];
+    var start = 0;
+    var m;
+    while ((m = separator.exec(text)) !== null) {
+      bounds.push([start, m.index]);
+      start = separator.lastIndex;
+    }
+    bounds.push([start, text.length]);
+
+    for (var i = 0; i < bounds.length; i++) {
+      var from = bounds[i][0];
+      var to = bounds[i][1];
+      if (to - from < need.length) {
+        continue;
+      }
+
+      var segment = text.slice(from, to);
+      var haystack = caseSensitive ? segment : segment.toLowerCase();
+      var cursor = 0;
+      var hits = [];
+      var matched = true;
+
+      for (var j = 0; j < need.length; j++) {
+        var idx = haystack.indexOf(need[j], cursor);
+        if (idx < 0) {
+          matched = false;
+          break;
+        }
+        hits.push(from + idx);
+        cursor = idx + 1;
+      }
+
+      if (!matched) {
+        continue;
+      }
+
+      var runStart = hits[0];
+      var prev = hits[0];
+      for (var k = 1; k < hits.length; k++) {
+        if (hits[k] === prev + 1) {
+          prev = hits[k];
+          continue;
+        }
+        ranges.push([runStart, prev + 1]);
+        runStart = hits[k];
+        prev = hits[k];
+      }
+      ranges.push([runStart, prev + 1]);
+      break;
+    }
+
+    return ranges;
+  }
+
   function matchRanges(text, meta) {
     var ranges = [];
     if (!meta) {
@@ -115,12 +178,17 @@
       var r = new RegExp(escapeRe(term), meta.caseSensitive ? 'g' : 'gi');
       var mm;
       var guard = 0;
+      var found = false;
       while ((mm = r.exec(text)) !== null && guard++ < 200) {
         if (mm[0].length === 0) {
           r.lastIndex++;
           continue;
         }
         ranges.push([mm.index, mm.index + mm[0].length]);
+        found = true;
+      }
+      if (!found) {
+        ranges = ranges.concat(fuzzyRanges(text, term, meta.caseSensitive));
       }
     });
     return ranges;

@@ -2,7 +2,7 @@
   "name": "endpoint-navigator",
   "displayName": "Endpoint Navigator",
   "description": "搜索并跳转 Java 项目中的 REST / WebSocket / Netty / xxl-job / MQ / 定时任务 / MyBatis Mapper 接口，支持正则与模糊搜索，支持 Swagger 中文描述反查。",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "publisher": "dsda56180",
   "license": "MIT",
   "icon": "resources/icon.png",

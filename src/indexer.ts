@@ -64,6 +64,7 @@ export class Indexer {
   private storageDir?: vscode.Uri;
   private settingsKeyValue = '';
   private persistTimer?: ReturnType<typeof setTimeout>;
+  private extensionVersion = '0';
 
   get all(): Endpoint[] {
     return this.endpoints;
@@ -73,8 +74,9 @@ export class Indexer {
     return this.duplicateGroups;
   }
 
-  attachStorage(dir: vscode.Uri): void {
+  attachStorage(dir: vscode.Uri, extensionVersion: string): void {
     this.storageDir = dir;
+    this.extensionVersion = extensionVersion;
   }
 
   clear(): void {
@@ -109,6 +111,7 @@ export class Indexer {
 
   private describeSettings(settings: Settings, contextPath: string): string {
     return JSON.stringify({
+      v: this.extensionVersion,
       scanners: settings.enabledScanners,
       include: settings.includeGlobs,
       exclude: settings.excludeGlobs,
@@ -301,6 +304,43 @@ export class Indexer {
 
     const files = await vscode.workspace.findFiles(include, settings.excludeGlobs, 20000);
 
+    // 先取全部 mtime：用于判断缓存是否仍然可信
+    const mtimes = new Map<string, number>();
+    await mapLimit(files, CONCURRENCY, async (uri) => {
+      let version = 0;
+      try {
+        version = (await vscode.workspace.fs.stat(uri)).mtime;
+      } catch {
+        version = 0;
+      }
+      mtimes.set(uri.fsPath, version);
+    });
+
+    // 新增文件，或常量/接口文件变更时，缓存中的端点可能已过期，整体重建
+    for (const uri of files) {
+      const key = uri.fsPath;
+      const cached = this.cache.get(key);
+      if (!cached) {
+        this.cache.clear();
+        break;
+      }
+      const version = mtimes.get(key) ?? 0;
+      if (
+        cached.version !== version &&
+        (cached.constants.length > 0 || cached.ifaces.length > 0)
+      ) {
+        this.cache.clear();
+        break;
+      }
+    }
+
+    const present = new Set(files.map((uri) => uri.fsPath));
+    for (const key of Array.from(this.cache.keys())) {
+      if (!present.has(key)) {
+        this.cache.delete(key);
+      }
+    }
+
     const collected: Endpoint[] = [];
     const parsedFiles = new Map<string, ParsedFile>();
     const freshMeta = new Map<string, { version: number; constants: Array<[string, string]>; ifaces: IfaceInfo[] }>();
@@ -311,12 +351,7 @@ export class Indexer {
         return;
       }
       const key = uri.fsPath;
-      let version = 0;
-      try {
-        version = (await vscode.workspace.fs.stat(uri)).mtime;
-      } catch {
-        version = 0;
-      }
+      const version = mtimes.get(key) ?? 0;
 
       const cached = this.cache.get(key);
       if (cached && cached.version === version) {

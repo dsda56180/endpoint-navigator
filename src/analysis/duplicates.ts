@@ -17,6 +17,8 @@ function normalizePath(raw: string): string {
   if (path.length > 1) {
     path = path.replace(/\/+$/, '');
   }
+  // Spring 中 /order/{id} 与 /order/{orderId} 是同一路由
+  path = path.replace(/\{[^}]*\}/g, '{}');
   return path;
 }
 

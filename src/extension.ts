@@ -7,7 +7,10 @@ import { quickSearch } from './ui/quickpick';
 
 export function activate(context: vscode.ExtensionContext): void {
   const indexer = new Indexer();
-  indexer.attachStorage(context.globalStorageUri);
+  indexer.attachStorage(
+    context.globalStorageUri,
+    String(context.extension.packageJSON.version ?? '0')
+  );
   const codeLens = new EndpointCodeLensProvider(indexer);
 
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
@@ -45,6 +48,12 @@ export function activate(context: vscode.ExtensionContext): void {
             increment: total > 0 ? 100 / total : 0
           });
         }, token);
+
+        // 用户取消时索引不完整，不能标记为已建立
+        if (token.isCancellationRequested) {
+          return;
+        }
+
         indexed = true;
         updateStatus(endpoints.length);
         codeLens.refresh();

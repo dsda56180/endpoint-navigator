@@ -107,6 +107,10 @@ const duplicates = findDuplicates([
 ]);
 check('重复检测大小写与尾斜杠归一', duplicates.length === 1 && duplicates[0].endpoints.length === 2);
 check('不同 method 不算重复', findDuplicates([probe('/x', 'GET', 'A'), probe('/x', 'POST', 'B')]).length === 0);
+check(
+  '路径变量名差异视为同一路由',
+  findDuplicates([probe('/order/{id}', 'GET', 'A'), probe('/order/{orderId}', 'GET', 'B')]).length === 1
+);
 
 const withConst: Endpoint = {
   ...probe('/api/{ApiConstants.VERSION}/list', 'GET', 'X'),
