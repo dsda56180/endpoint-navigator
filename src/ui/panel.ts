@@ -57,6 +57,10 @@ export class SearchPanel {
     current?.setStyle(style);
   }
 
+  static applyGrouping(value: boolean): void {
+    current?.setGrouping(value);
+  }
+
   private readonly panel: vscode.WebviewPanel;
   private readonly indexer: Indexer;
   private readonly disposables: vscode.Disposable[] = [];
@@ -68,11 +72,13 @@ export class SearchPanel {
   private showAll = false;
   private initialized = false;
   private style: UiStyle = 'classic';
+  private groupByTag = false;
 
   private constructor(indexer: Indexer, extensionUri: vscode.Uri, initialQuery: string) {
     this.indexer = indexer;
     this.query = initialQuery;
     this.style = readSettings().uiStyle;
+    this.groupByTag = readSettings().groupByTag;
 
     this.panel = vscode.window.createWebviewPanel(
       'endpointNavigator',
@@ -94,6 +100,7 @@ export class SearchPanel {
             this.initialized = true;
             this.pushStats();
             this.panel.webview.postMessage({ type: 'style', value: this.style });
+            this.panel.webview.postMessage({ type: 'group', value: this.groupByTag });
             this.panel.webview.postMessage({ type: 'initial', query: this.query });
             this.runSearch();
             break;
@@ -122,6 +129,11 @@ export class SearchPanel {
             await vscode.workspace
               .getConfiguration('endpointNavigator')
               .update('ui.style', this.normalizeStyle(msg.value), vscode.ConfigurationTarget.Global);
+            break;
+          case 'group':
+            await vscode.workspace
+              .getConfiguration('endpointNavigator')
+              .update('ui.groupByTag', !!msg.value, vscode.ConfigurationTarget.Global);
             break;
           case 'close':
             this.panel.dispose();
@@ -162,6 +174,11 @@ export class SearchPanel {
   private setStyle(value: string): void {
     this.style = this.normalizeStyle(value);
     this.panel.webview.postMessage({ type: 'style', value: this.style });
+  }
+
+  private setGrouping(value: boolean): void {
+    this.groupByTag = !!value;
+    this.panel.webview.postMessage({ type: 'group', value: this.groupByTag });
   }
 
   runSearch(): void {
@@ -291,6 +308,7 @@ export class SearchPanel {
     <input id="q" type="text" placeholder="搜索路径 / 中文描述 / 类名；支持 method:GET、kind:rest、-排除" autocomplete="off" aria-label="搜索接口" />
     <button class="toggle" id="re" title="正则模式（也可用 re: 前缀）" aria-label="正则模式" aria-pressed="false">.*</button>
     <button class="toggle" id="case" title="区分大小写" aria-label="区分大小写" aria-pressed="false">Aa</button>
+    <button class="toggle" id="group" title="按 Swagger 标签分组" aria-label="按标签分组" aria-pressed="false">分组</button>
     <select id="style" class="style-select" aria-label="界面样式" title="切换界面样式">
       <option value="classic"${this.style === 'classic' ? ' selected' : ''}>经典</option>
       <option value="card"${this.style === 'card' ? ' selected' : ''}>卡片</option>

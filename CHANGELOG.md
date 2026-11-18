@@ -1,5 +1,14 @@
 # 更新日志
 
+## 0.13.0
+
+### 新增
+
+- 列表行展示 Controller 的 Swagger 标签（`@Api(tags=...)` / `@Tag(name=...)`）
+- 搜索栏「分组」开关：按标签分组展示，组头显示标签名与数量，可固定吸顶
+- `endpointNavigator.ui.groupByTag` 配置项保存分组状态
+- OpenAPI 导出优先使用 Swagger 标签作为分组（无标签时回退到模块名）
+
 ## 0.12.0
 
 ### 修复

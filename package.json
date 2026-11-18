@@ -2,7 +2,7 @@
   "name": "endpoint-navigator",
   "displayName": "Endpoint Navigator",
   "description": "搜索并跳转 Java 项目中的 REST / WebSocket / Netty / xxl-job / MQ / 定时任务 / MyBatis Mapper 接口，支持正则与模糊搜索，支持 Swagger 中文描述反查。",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "publisher": "dsda56180",
   "license": "MIT",
   "icon": "resources/icon.png",
@@ -145,6 +145,11 @@
           ],
           "default": "classic",
           "description": "搜索面板的界面样式，也可在面板内直接切换。"
+        },
+        "endpointNavigator.ui.groupByTag": {
+          "type": "boolean",
+          "default": false,
+          "description": "在搜索面板中按 Swagger 标签（@Api tags / @Tag name）分组展示接口。"
         },
         "endpointNavigator.customRules": {
           "type": "array",

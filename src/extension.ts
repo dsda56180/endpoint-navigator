@@ -207,6 +207,9 @@ export function activate(context: vscode.ExtensionContext): void {
       if (e.affectsConfiguration('endpointNavigator.ui.style')) {
         SearchPanel.applyStyle(readSettings().uiStyle);
       }
+      if (e.affectsConfiguration('endpointNavigator.ui.groupByTag')) {
+        SearchPanel.applyGrouping(readSettings().groupByTag);
+      }
       if (e.affectsConfiguration('endpointNavigator.codeLens.enabled')) {
         codeLens.refresh();
       }

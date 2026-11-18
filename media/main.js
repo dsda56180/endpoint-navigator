@@ -7,6 +7,7 @@
   const caseEl = document.getElementById('case');
   const exportEl = document.getElementById('export');
   const styleEl = document.getElementById('style');
+  const groupEl = document.getElementById('group');
   const countEl = document.getElementById('count');
   const errorEl = document.getElementById('error');
   const listEl = document.getElementById('list');
@@ -15,6 +16,7 @@
     kind: null,
     regex: false,
     caseSensitive: false,
+    groupByTag: false,
     query: '',
     items: [],
     selected: 0,
@@ -265,6 +267,27 @@
   document.addEventListener('click', hideMenu);
   window.addEventListener('blur', hideMenu);
 
+  function buildGroups() {
+    if (!state.groupByTag) {
+      return [{ tag: null, items: state.items }];
+    }
+
+    var order = [];
+    var map = new Map();
+    state.items.forEach(function (item) {
+      var tag = item.tags && item.tags.length ? item.tags[0] : '未标注';
+      if (!map.has(tag)) {
+        map.set(tag, []);
+        order.push(tag);
+      }
+      map.get(tag).push(item);
+    });
+
+    return order.map(function (tag) {
+      return { tag: tag, items: map.get(tag) };
+    });
+  }
+
   function renderList() {
     listEl.innerHTML = '';
     countEl.textContent = state.total > state.items.length
@@ -283,7 +306,24 @@
 
     const frag = document.createDocumentFragment();
 
-    state.items.forEach(function (item, idx) {
+    let rowIndex = 0;
+    buildGroups().forEach(function (group) {
+      if (group.tag !== null) {
+        const header = document.createElement('div');
+        header.className = 'group-header';
+        const name = document.createElement('span');
+        name.className = 'group-name';
+        name.textContent = group.tag;
+        const count = document.createElement('span');
+        count.className = 'count';
+        count.textContent = String(group.items.length);
+        header.appendChild(name);
+        header.appendChild(count);
+        frag.appendChild(header);
+      }
+
+      group.items.forEach(function (item) {
+      const idx = rowIndex++;
       const row = document.createElement('div');
       row.className = 'row' + (idx === state.selected ? ' selected' : '');
       row.setAttribute('role', 'option');
@@ -318,6 +358,12 @@
 
       const desc = document.createElement('div');
       desc.className = 'desc';
+      (item.tags || []).forEach(function (tag) {
+        const chip = document.createElement('span');
+        chip.className = 'tag';
+        chip.textContent = tag;
+        desc.appendChild(chip);
+      });
       const bits = [];
       if (item.description) {
         bits.push(item.description);
@@ -325,7 +371,10 @@
       if (item.className) {
         bits.push(item.className + (item.methodName ? '.' + item.methodName : ''));
       }
-      appendHighlighted(desc, bits.join('  ·  '), state.queryMeta);
+      const descText = document.createElement('span');
+      descText.className = 'desc-text';
+      appendHighlighted(descText, bits.join('  ·  '), state.queryMeta);
+      desc.appendChild(descText);
       main.appendChild(desc);
 
       row.appendChild(main);
@@ -351,6 +400,7 @@
       });
 
       frag.appendChild(row);
+      });
     });
 
     listEl.appendChild(frag);
@@ -432,6 +482,18 @@
     vscode.postMessage({ type: 'style', value: styleEl.value });
   });
 
+  groupEl.addEventListener('click', function () {
+    applyGrouping(!state.groupByTag);
+    vscode.postMessage({ type: 'group', value: state.groupByTag });
+    renderList();
+  });
+
+  function applyGrouping(value) {
+    state.groupByTag = !!value;
+    groupEl.classList.toggle('on', state.groupByTag);
+    groupEl.setAttribute('aria-pressed', state.groupByTag ? 'true' : 'false');
+  }
+
   function applyStyle(value) {
     const next = value === 'card' || value === 'compact' ? value : 'classic';
     document.body.dataset.style = next;
@@ -503,6 +565,12 @@
 
     if (msg.type === 'style') {
       applyStyle(msg.value);
+      return;
+    }
+
+    if (msg.type === 'group') {
+      applyGrouping(msg.value);
+      renderList();
       return;
     }
 

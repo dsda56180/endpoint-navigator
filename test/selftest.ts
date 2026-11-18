@@ -356,5 +356,39 @@ check(
   classTarget?.className ?? '无'
 );
 
+const taggedParsed = parseJava(`
+@Api(tags = "基础-司机信息管理")
+@RestController
+@RequestMapping("/driver")
+public class DriverController {
+    @GetMapping("/list")
+    public Result list() {
+        return null;
+    }
+}
+`);
+const taggedFound: Endpoint[] = restScanner
+  ? restScanner.scan(
+      {
+        filePath: '/tmp/DriverController.java',
+        module: 'demo',
+        constants: taggedParsed.constants,
+        parsed: taggedParsed,
+        contextPath: ''
+      },
+      { rules: [] }
+    )
+  : [];
+check(
+  '提取 Controller 的 @Api 标签',
+  taggedFound[0]?.tags?.[0] === '基础-司机信息管理',
+  taggedFound[0]?.tags?.join(',') ?? '无'
+);
+check(
+  'OpenAPI 优先使用 Swagger 标签',
+  JSON.parse(toOpenApi(taggedFound, (p) => p)).paths['/driver/list'].get.tags[0] ===
+    '基础-司机信息管理'
+);
+
 console.log(`\n通过 ${passed} 项，失败 ${failed} 项`);
 process.exitCode = failed > 0 ? 1 : 0;

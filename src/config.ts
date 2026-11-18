@@ -11,6 +11,7 @@ export interface Settings {
   showUnresolved: boolean;
   customRules: CustomRule[];
   uiStyle: UiStyle;
+  groupByTag: boolean;
 }
 
 export function readSettings(): Settings {
@@ -29,6 +30,7 @@ export function readSettings(): Settings {
     contextPath: cfg.get<string>('contextPath', ''),
     showUnresolved: cfg.get<boolean>('showUnresolved', true),
     customRules: cfg.get<CustomRule[]>('customRules', []),
-    uiStyle: cfg.get<UiStyle>('ui.style', 'classic')
+    uiStyle: cfg.get<UiStyle>('ui.style', 'classic'),
+    groupByTag: cfg.get<boolean>('ui.groupByTag', false)
   };
 }

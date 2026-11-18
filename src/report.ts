@@ -92,7 +92,7 @@ export function toOpenApi(
       continue;
     }
     const method = verb.toLowerCase();
-    const tag = ep.module || ep.kindLabel || 'REST';
+    const tag = ep.tags[0] || ep.module || ep.kindLabel || 'REST';
     if (!tagOrder.includes(tag)) {
       tagOrder.push(tag);
     }
