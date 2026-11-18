@@ -1,5 +1,13 @@
 # 更新日志
 
+## 0.3.0
+
+### 新增
+
+- CodeLens：在 Controller 方法上方显示完整接口路径，点击打开搜索面板并预填
+- `endpointNavigator.codeLens.enabled` 配置项，大项目可关闭
+- 启动时自动构建索引（仅当工作区存在 Java 文件），状态栏与 CodeLens 无需手动触发
+
 ## 0.2.0
 
 ### 新增

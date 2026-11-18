@@ -423,6 +423,15 @@
     if (msg.type === 'focusSearch') {
       inputEl.focus();
       inputEl.select();
+      return;
+    }
+
+    if (msg.type === 'setQuery') {
+      inputEl.value = msg.query || '';
+      state.query = inputEl.value.trim();
+      state.selected = 0;
+      sendSearch(true);
+      inputEl.focus();
     }
   });
 

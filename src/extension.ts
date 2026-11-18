@@ -1,10 +1,12 @@
 import * as vscode from 'vscode';
+import { EndpointCodeLensProvider } from './codelens';
 import { Indexer } from './indexer';
 import { SearchPanel } from './ui/panel';
 import { quickSearch } from './ui/quickpick';
 
 export function activate(context: vscode.ExtensionContext): void {
   const indexer = new Indexer();
+  const codeLens = new EndpointCodeLensProvider(indexer);
 
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   status.command = 'endpointNavigator.search';
@@ -38,6 +40,7 @@ export function activate(context: vscode.ExtensionContext): void {
         }, token);
         indexed = true;
         updateStatus(endpoints.length);
+        codeLens.refresh();
       }
     );
   }
@@ -56,6 +59,11 @@ export function activate(context: vscode.ExtensionContext): void {
       SearchPanel.show(indexer, context.extensionUri, selectionText());
     }),
 
+    vscode.commands.registerCommand('endpointNavigator.searchPath', async (path?: string) => {
+      await ensureIndexed();
+      SearchPanel.show(indexer, context.extensionUri, typeof path === 'string' ? path : '');
+    }),
+
     vscode.commands.registerCommand('endpointNavigator.quickSearch', async () => {
       await ensureIndexed();
       await quickSearch(indexer);
@@ -70,7 +78,9 @@ export function activate(context: vscode.ExtensionContext): void {
         `Endpoint Navigator：已重建索引，共 ${indexer.all.length} 个接口`,
         4000
       );
-    })
+    }),
+
+    vscode.languages.registerCodeLensProvider({ scheme: 'file', language: 'java' }, codeLens)
   );
 
   const watcher = vscode.workspace.createFileSystemWatcher('**/*.java');
@@ -87,6 +97,7 @@ export function activate(context: vscode.ExtensionContext): void {
       await indexer.refreshFile(vscode.Uri.parse(uri));
     }
     updateStatus(indexer.all.length);
+    codeLens.refresh();
     SearchPanel.refresh();
   };
 
@@ -110,6 +121,7 @@ export function activate(context: vscode.ExtensionContext): void {
   watcher.onDidDelete((uri) => {
     indexer.dropFile(uri.fsPath);
     updateStatus(indexer.all.length);
+    codeLens.refresh();
     SearchPanel.refresh();
   });
 
@@ -120,10 +132,22 @@ export function activate(context: vscode.ExtensionContext): void {
         indexer.clear();
         indexed = false;
         void ensureIndexed().then(() => SearchPanel.refresh());
+        codeLens.refresh();
       }
     }),
     status
   );
+
+  void (async () => {
+    const javaFiles = await vscode.workspace.findFiles(
+      '**/*.java',
+      '**/{target,build,node_modules,out,dist,.git}/**',
+      1
+    );
+    if (javaFiles.length > 0) {
+      await ensureIndexed();
+    }
+  })();
 }
 
 export function deactivate(): void {

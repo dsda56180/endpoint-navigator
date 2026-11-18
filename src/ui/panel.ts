@@ -36,7 +36,13 @@ export class SearchPanel {
   static show(indexer: Indexer, extensionUri: vscode.Uri, initialQuery = ''): void {
     if (current) {
       current.panel.reveal(undefined, false);
-      current.panel.webview.postMessage({ type: 'focusSearch' });
+      if (initialQuery) {
+        current.query = initialQuery;
+        current.showAll = false;
+        current.panel.webview.postMessage({ type: 'setQuery', query: initialQuery });
+      } else {
+        current.panel.webview.postMessage({ type: 'focusSearch' });
+      }
       return;
     }
     current = new SearchPanel(indexer, extensionUri, initialQuery);
