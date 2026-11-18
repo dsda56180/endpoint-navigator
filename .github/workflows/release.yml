@@ -74,5 +74,10 @@ jobs:
       - name: Publish to Open VSX
         if: env.OVSX_PAT != ''
         run: |
-          npx --yes ovsx create-namespace dsda56180 -p "$OVSX_PAT" || true
-          npx --yes ovsx publish "${{ steps.version.outputs.vsix }}" -p "$OVSX_PAT" --skip-duplicate
+          PAT=$(printf '%s' "$OVSX_PAT" | tr -d '\r\n')
+          PAT=${PAT%% *}
+          if [ -z "$PAT" ]; then
+            echo "::error::OVSX_PAT 为空"
+            exit 1
+          fi
+          npx --yes ovsx publish "${{ steps.version.outputs.vsix }}" -p "$PAT" --skip-duplicate
