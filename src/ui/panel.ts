@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { readSettings } from '../config';
 import { Indexer } from '../indexer';
 import { Endpoint } from '../model';
+import { toJson, toMarkdown } from '../report';
 import { parseQuery, rankEndpoints } from '../search/score';
 
 const KIND_ORDER = ['rest', 'websocket', 'xxljob', 'mq', 'scheduled', 'mybatis'];
@@ -107,6 +108,9 @@ export class SearchPanel {
           case 'open':
             await this.openEndpoint(msg.id);
             break;
+          case 'export':
+            await this.exportFiltered();
+            break;
           case 'close':
             this.panel.dispose();
             await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
@@ -175,6 +179,43 @@ export class SearchPanel {
         message: (err as Error).message
       });
     }
+  }
+
+  private async exportFiltered(): Promise<void> {
+    let items: Endpoint[];
+    try {
+      const parsed = parseQuery(this.query, this.regex, this.caseSensitive);
+      items = rankEndpoints(this.indexer.all, parsed, this.kind, 100000).items;
+    } catch (err) {
+      vscode.window.showErrorMessage(`Endpoint Navigator：${(err as Error).message}`);
+      return;
+    }
+
+    if (items.length === 0) {
+      vscode.window.showInformationMessage('Endpoint Navigator：当前筛选没有可导出的接口');
+      return;
+    }
+
+    const folder = vscode.workspace.workspaceFolders?.[0]?.uri;
+    const target = await vscode.window.showSaveDialog({
+      saveLabel: `导出 ${items.length} 个接口`,
+      filters: { Markdown: ['md'], JSON: ['json'] },
+      defaultUri: folder ? vscode.Uri.joinPath(folder, 'endpoints.md') : undefined
+    });
+    if (!target) {
+      return;
+    }
+
+    const relative = (filePath: string): string =>
+      vscode.workspace.asRelativePath(filePath);
+    const content = target.fsPath.toLowerCase().endsWith('.json')
+      ? toJson(items, relative)
+      : toMarkdown(items, relative);
+
+    await vscode.workspace.fs.writeFile(target, Buffer.from(content, 'utf8'));
+    vscode.window.showInformationMessage(
+      `已导出 ${items.length} 个接口到 ${target.fsPath}`
+    );
   }
 
   private async copyEndpoint(id: string, action: string): Promise<void> {
@@ -248,6 +289,7 @@ export class SearchPanel {
     <input id="q" type="text" placeholder="搜索接口路径 / 中文描述 / 类名，空格分隔多个关键词" autocomplete="off" />
     <button class="toggle" id="re" title="正则模式（也可用 re: 前缀）">.*</button>
     <button class="toggle" id="case" title="区分大小写">Aa</button>
+    <button class="toggle" id="export" title="导出当前筛选结果">导出</button>
     <span id="count"></span>
   </div>
   <div class="error" id="error"></div>

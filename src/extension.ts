@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { EndpointCodeLensProvider } from './codelens';
 import { Indexer } from './indexer';
-import { Endpoint } from './model';
+import { toJson, toMarkdown } from './report';
 import { SearchPanel } from './ui/panel';
 import { quickSearch } from './ui/quickpick';
 
@@ -160,24 +160,11 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
+      const relative = (filePath: string): string =>
+        vscode.workspace.asRelativePath(filePath);
       const content = target.fsPath.toLowerCase().endsWith('.json')
-        ? JSON.stringify(
-            all.map((ep) => ({
-              kind: ep.kind,
-              method: ep.httpMethod ?? '',
-              path: ep.path,
-              name: ep.name,
-              description: ep.description ?? '',
-              className: ep.className,
-              methodName: ep.methodName,
-              file: ep.filePath,
-              line: ep.line,
-              module: ep.module
-            })),
-            null,
-            2
-          )
-        : toMarkdown(all);
+        ? toJson(all, relative)
+        : toMarkdown(all, relative);
 
       await vscode.workspace.fs.writeFile(target, Buffer.from(content, 'utf8'));
       vscode.window.showInformationMessage(
@@ -253,29 +240,6 @@ export function activate(context: vscode.ExtensionContext): void {
       await ensureIndexed();
     }
   })();
-}
-
-function escapeCell(value: string): string {
-  return value.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
-}
-
-function toMarkdown(endpoints: Endpoint[]): string {
-  const lines = [
-    '| 类型 | 方法 | 路径 | 描述 | 类.方法 | 位置 |',
-    '| --- | --- | --- | --- | --- | --- |'
-  ];
-  for (const ep of endpoints) {
-    const cells = [
-      escapeCell(ep.kindLabel),
-      escapeCell(ep.httpMethod ?? ''),
-      escapeCell(ep.path || ep.name),
-      escapeCell(ep.description ?? ''),
-      escapeCell(`${ep.className}.${ep.methodName}`),
-      escapeCell(`${vscode.workspace.asRelativePath(ep.filePath)}:${ep.line}`)
-    ];
-    lines.push(`| ${cells.join(' | ')} |`);
-  }
-  return lines.join('\n') + '\n';
 }
 
 export function deactivate(): void {

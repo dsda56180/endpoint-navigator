@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { Indexer } from './indexer';
+import { Endpoint } from './model';
 
 /**
  * 在 Controller 方法上方渲染完整接口路径，点击后打开搜索面板并预填该路径。
@@ -8,11 +9,32 @@ import { Indexer } from './indexer';
 export class EndpointCodeLensProvider implements vscode.CodeLensProvider {
   private readonly changed = new vscode.EventEmitter<void>();
   readonly onDidChangeCodeLenses = this.changed.event;
+  private byFile = new Map<string, Endpoint[]>();
+  private stale = true;
 
   constructor(private readonly indexer: Indexer) {}
 
   refresh(): void {
+    this.stale = true;
     this.changed.fire();
+  }
+
+  private ensureIndex(): Map<string, Endpoint[]> {
+    if (!this.stale) {
+      return this.byFile;
+    }
+    const map = new Map<string, Endpoint[]>();
+    for (const ep of this.indexer.all) {
+      const list = map.get(ep.filePath);
+      if (list) {
+        list.push(ep);
+      } else {
+        map.set(ep.filePath, [ep]);
+      }
+    }
+    this.byFile = map;
+    this.stale = false;
+    return map;
   }
 
   provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
@@ -25,10 +47,7 @@ export class EndpointCodeLensProvider implements vscode.CodeLensProvider {
     }
 
     const lenses: vscode.CodeLens[] = [];
-    for (const ep of this.indexer.all) {
-      if (ep.filePath !== document.uri.fsPath) {
-        continue;
-      }
+    for (const ep of this.ensureIndex().get(document.uri.fsPath) ?? []) {
       const line = Math.max(0, ep.line - 1);
       const path = ep.path || ep.name;
       const label = ep.httpMethod ? `${ep.httpMethod} ${path}` : path;

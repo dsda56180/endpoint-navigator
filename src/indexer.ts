@@ -65,6 +65,7 @@ export class Indexer {
   private settingsKeyValue = '';
   private persistTimer?: ReturnType<typeof setTimeout>;
   private extensionVersion = '0';
+  private cacheDirty = false;
 
   get all(): Endpoint[] {
     return this.endpoints;
@@ -149,16 +150,17 @@ export class Indexer {
     if (!this.storageDir) {
       return;
     }
+    this.cacheDirty = true;
     if (this.persistTimer) {
       clearTimeout(this.persistTimer);
     }
     this.persistTimer = setTimeout(() => {
       void this.persist();
-    }, 1500);
+    }, 8000);
   }
 
   private async persist(): Promise<void> {
-    if (!this.storageDir) {
+    if (!this.storageDir || !this.cacheDirty) {
       return;
     }
     try {
@@ -181,6 +183,7 @@ export class Indexer {
         vscode.Uri.joinPath(this.storageDir, CACHE_FILE),
         Buffer.from(JSON.stringify(payload), 'utf8')
       );
+      this.cacheDirty = false;
     } catch {
       // 缓存写入失败不影响功能
     }

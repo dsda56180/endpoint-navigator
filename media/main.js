@@ -5,6 +5,7 @@
   const inputEl = document.getElementById('q');
   const reEl = document.getElementById('re');
   const caseEl = document.getElementById('case');
+  const exportEl = document.getElementById('export');
   const countEl = document.getElementById('count');
   const errorEl = document.getElementById('error');
   const listEl = document.getElementById('list');
@@ -413,6 +414,10 @@
     state.caseSensitive = !state.caseSensitive;
     caseEl.classList.toggle('on', state.caseSensitive);
     sendSearch(true);
+  });
+
+  exportEl.addEventListener('click', function () {
+    vscode.postMessage({ type: 'export' });
   });
 
   document.addEventListener('keydown', function (e) {
