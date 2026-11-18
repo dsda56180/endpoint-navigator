@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { DuplicateGroup, findDuplicates } from './analysis/duplicates';
 import { readSettings, Settings } from './config';
 import { parseJava } from './java/parser';
 import { Endpoint, ScanContext } from './model';
@@ -36,6 +37,7 @@ async function mapLimit<T, R>(
 export class Indexer {
   private cache = new Map<string, FileCache>();
   private endpoints: Endpoint[] = [];
+  private duplicateGroups: DuplicateGroup[] = [];
   private moduleDirs: Array<{ dir: string; name: string }> = [];
   private building: Promise<Endpoint[]> | null = null;
 
@@ -43,9 +45,14 @@ export class Indexer {
     return this.endpoints;
   }
 
+  get duplicates(): DuplicateGroup[] {
+    return this.duplicateGroups;
+  }
+
   clear(): void {
     this.cache.clear();
     this.endpoints = [];
+    this.duplicateGroups = [];
     this.moduleDirs = [];
     this.building = null;
   }
@@ -53,6 +60,7 @@ export class Indexer {
   dropFile(filePath: string): void {
     this.cache.delete(filePath);
     this.endpoints = this.endpoints.filter((ep) => ep.filePath !== filePath);
+    this.duplicateGroups = findDuplicates(this.endpoints);
   }
 
   async build(
@@ -161,6 +169,7 @@ export class Indexer {
     });
 
     this.endpoints = collected;
+    this.duplicateGroups = findDuplicates(collected);
     return collected;
   }
 
@@ -192,6 +201,7 @@ export class Indexer {
 
       this.endpoints = this.endpoints.filter((ep) => ep.filePath !== uri.fsPath);
       this.endpoints.push(...found);
+      this.duplicateGroups = findDuplicates(this.endpoints);
     } catch {
       // 忽略
     }

@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { findDuplicates } from '../src/analysis/duplicates';
 import { parseJava } from '../src/java/parser';
 import { ALL_SCANNERS } from '../src/registry';
 import { Endpoint, ScanContext } from '../src/model';
@@ -109,6 +110,42 @@ if (filter) {
     console.log(`  ${ep.name} -> ${ep.unresolved.join(', ')}`);
   }
 }
+
+console.log(`\n=== 重复映射 ===`);
+const dupGroups = findDuplicates(all);
+console.log(`冲突组数: ${dupGroups.length}`);
+for (const g of dupGroups.slice(0, 8)) {
+  console.log(`  ${g.key}  ->  ${g.endpoints.map((ep) => ep.className + '#' + ep.methodName).join(', ')}`);
+}
+
+const probe = (p: string, m: string, cls: string): Endpoint => ({
+  id: cls,
+  kind: 'rest',
+  kindLabel: 'REST',
+  name: `${m} ${p}`,
+  path: p,
+  httpMethod: m,
+  description: '',
+  tags: [],
+  className: cls,
+  methodName: 'probe',
+  filePath: '/tmp/Probe.java',
+  line: 1,
+  module: '',
+  unresolved: [],
+  searchText: ''
+});
+
+const probeResult = findDuplicates([
+  probe('/audit/list', 'POST', 'A'),
+  probe('/audit/list/', 'post', 'B'),
+  probe('/audit/list', 'GET', 'C')
+]);
+console.log(
+  probeResult.length === 1 && probeResult[0].endpoints.length === 2
+    ? 'PASS  重复检测：大小写与尾斜杠归一后识别为同组'
+    : `FAIL  重复检测：得到 ${probeResult.length} 组`
+);
 
 console.log('\n=== 搜索能力自检 ===');
 
