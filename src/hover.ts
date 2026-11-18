@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { findHoverTargets } from './analysis/hover';
+import { findClassHoverTarget, findHoverTargets } from './analysis/hover';
 import { Indexer } from './indexer';
 import { parseJava } from './java/parser';
 import { Endpoint, ParsedFile } from './model';
@@ -9,7 +9,10 @@ const MAX_PARSE_CACHE = 50;
 export class EndpointHoverProvider implements vscode.HoverProvider {
   private readonly parsed = new Map<string, { version: number; value: ParsedFile }>();
 
-  constructor(private readonly indexer: Indexer) {}
+  constructor(
+    private readonly indexer: Indexer,
+    private readonly output?: vscode.OutputChannel
+  ) {}
 
   refresh(): void {
     this.parsed.clear();
@@ -44,32 +47,53 @@ export class EndpointHoverProvider implements vscode.HoverProvider {
       return undefined;
     }
 
-    const targets = findHoverTargets(this.parse(document), position.line + 1);
-    if (targets.length === 0) {
-      return undefined;
-    }
+    const line = position.line + 1;
+    const parsed = this.parse(document);
+    const targets = findHoverTargets(parsed, line);
 
     const matches: Endpoint[] = [];
+    const seen = new Set<string>();
     for (const target of targets) {
       for (const ep of this.indexer.all) {
+        if (seen.has(ep.id)) {
+          continue;
+        }
         if (
           ep.filePath === document.uri.fsPath &&
           ep.className === target.className &&
           ep.methodName === target.methodName &&
           Math.abs(ep.line - target.methodLine) <= 2
         ) {
+          seen.add(ep.id);
           matches.push(ep);
         }
       }
     }
+
     if (matches.length === 0) {
+      const classTarget = findClassHoverTarget(parsed, line);
+      if (classTarget) {
+        const classEndpoints = this.indexer.all.filter(
+          (ep) => ep.filePath === document.uri.fsPath && ep.className === classTarget.className
+        );
+        if (classEndpoints.length > 0) {
+          this.output?.appendLine(
+            `[hover] ${document.uri.fsPath}:${line} 类级 ${classTarget.className} 接口 ${classEndpoints.length}`
+          );
+          return new vscode.Hover(this.renderClass(classTarget.className, classTarget.annotations, classEndpoints.length));
+        }
+      }
+      this.output?.appendLine(
+        `[hover] ${document.uri.fsPath}:${line} 未命中（targets=${targets.length}）`
+      );
       return undefined;
     }
 
-    const markdown = new vscode.MarkdownString(undefined, true);
-    markdown.isTrusted = { enabledCommands: ['endpointNavigator.searchPath'] };
-    markdown.supportThemeIcons = true;
+    this.output?.appendLine(
+      `[hover] ${document.uri.fsPath}:${line} 命中 ${matches.length} 个接口`
+    );
 
+    const markdown = this.markdown();
     const duplicateIds = new Set<string>();
     for (const group of this.indexer.duplicates) {
       for (const ep of group.endpoints) {
@@ -96,9 +120,8 @@ export class EndpointHoverProvider implements vscode.HoverProvider {
       if (duplicateIds.has(ep.id)) {
         markdown.appendMarkdown('\n\n$(warning) 与其他接口映射重复');
       }
-      const args = encodeURIComponent(JSON.stringify([ep.path || ep.name]));
       markdown.appendMarkdown(
-        `\n\n[$(search) 在面板中搜索](command:endpointNavigator.searchPath?${args})`
+        `\n\n[$(search) 在面板中搜索](command:endpointNavigator.searchPath?${this.searchArgs(ep.path || ep.name)})`
       );
     });
     if (matches.length > shown.length) {
@@ -106,5 +129,32 @@ export class EndpointHoverProvider implements vscode.HoverProvider {
     }
 
     return new vscode.Hover(markdown);
+  }
+
+  private markdown(): vscode.MarkdownString {
+    const markdown = new vscode.MarkdownString(undefined, true);
+    markdown.isTrusted = { enabledCommands: ['endpointNavigator.searchPath'] };
+    markdown.supportThemeIcons = true;
+    return markdown;
+  }
+
+  private searchArgs(value: string): string {
+    return encodeURIComponent(JSON.stringify([value]));
+  }
+
+  private renderClass(
+    className: string,
+    annotations: Array<{ name: string; args: string | null }>,
+    count: number
+  ): vscode.MarkdownString {
+    const markdown = this.markdown();
+    const mapping = annotations.find((a) => a.name === 'RequestMapping');
+    const prefix = mapping?.args ? ` @RequestMapping(${mapping.args})` : '';
+    markdown.appendMarkdown(`**类级映射**${prefix}`);
+    markdown.appendMarkdown(`\n\n\`${className}\` · ${count} 个接口`);
+    markdown.appendMarkdown(
+      `\n\n[$(search) 在面板中搜索该类](command:endpointNavigator.searchPath?${this.searchArgs(className)})`
+    );
+    return markdown;
   }
 }

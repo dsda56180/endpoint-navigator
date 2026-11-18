@@ -9,17 +9,17 @@ import { quickSearch } from './ui/quickpick';
 
 export function activate(context: vscode.ExtensionContext): void {
   const indexer = new Indexer();
-  indexer.attachStorage(
-    context.globalStorageUri,
-    String(context.extension.packageJSON.version ?? '0')
-  );
+  const version = String(context.extension.packageJSON.version ?? '0');
+  indexer.attachStorage(context.globalStorageUri, version);
+  const output = vscode.window.createOutputChannel('Endpoint Navigator');
+  output.appendLine(`[activate] Endpoint Navigator v${version}`);
   const codeLens = new EndpointCodeLensProvider(indexer);
-  const hover = new EndpointHoverProvider(indexer);
+  const hover = new EndpointHoverProvider(indexer, output);
 
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   status.command = 'endpointNavigator.search';
   status.text = '$(list-tree) Endpoints';
-  status.tooltip = 'Endpoint Navigator：点击搜索接口';
+  status.tooltip = `Endpoint Navigator v${version}：点击搜索接口`;
   status.show();
 
   let indexed = false;
@@ -30,8 +30,8 @@ export function activate(context: vscode.ExtensionContext): void {
     status.text = `$(list-tree) ${count}`;
     status.tooltip =
       dup > 0
-        ? `Endpoint Navigator：${count} 个接口，${dup} 组重复映射，点击搜索`
-        : `Endpoint Navigator：${count} 个接口，点击搜索`;
+        ? `Endpoint Navigator v${version}：${count} 个接口，${dup} 组重复映射，点击搜索`
+        : `Endpoint Navigator v${version}：${count} 个接口，点击搜索`;
   };
 
   async function ensureIndexed(): Promise<void> {
@@ -61,6 +61,7 @@ export function activate(context: vscode.ExtensionContext): void {
         updateStatus(endpoints.length);
         codeLens.refresh();
         hover.refresh();
+        output.appendLine(`[index] 完成，共 ${endpoints.length} 个接口`);
 
         const dup = indexer.duplicates;
         if (!warnedDuplicates && dup.length > 0) {
@@ -201,6 +202,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     watcher,
+    output,
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('endpointNavigator.ui.style')) {
         SearchPanel.applyStyle(readSettings().uiStyle);

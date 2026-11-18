@@ -1,6 +1,6 @@
 import { applyConstants } from '../src/analysis/constants';
 import { findDuplicates } from '../src/analysis/duplicates';
-import { findHoverTargets } from '../src/analysis/hover';
+import { findClassHoverTarget, findHoverTargets } from '../src/analysis/hover';
 import { applyInheritance, ifacesOf } from '../src/analysis/inheritance';
 import { parseJava } from '../src/java/parser';
 import { AnnotationNode, Endpoint, ScanContext } from '../src/model';
@@ -326,13 +326,34 @@ public class AuditController {
     }
 }
 `);
-const hoverTargets = findHoverTargets(hoverParsed, 5);
+const hoverTargets = findHoverTargets(hoverParsed, 6);
 check(
-  '悬浮定位到注解行',
-  hoverTargets.length === 1 &&
+  '悬浮定位到注解行与方法行',
+  hoverTargets.length >= 1 &&
     hoverTargets[0].methodName === 'list' &&
     hoverTargets[0].className === 'AuditController',
   hoverTargets.map((t) => `${t.className}.${t.methodName}`).join(',')
+);
+check(
+  '悬浮支持跨行注解参数',
+  findHoverTargets(
+    parseJava(`
+public class A {
+    @GetMapping(
+        value = "/x"
+    )
+    public void x() {
+    }
+}
+`),
+    4
+  ).length === 1
+);
+const classTarget = findClassHoverTarget(hoverParsed, 2);
+check(
+  '悬浮识别类级注解',
+  classTarget?.className === 'AuditController',
+  classTarget?.className ?? '无'
 );
 
 console.log(`\n通过 ${passed} 项，失败 ${failed} 项`);
