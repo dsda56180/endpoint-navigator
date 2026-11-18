@@ -7,6 +7,7 @@ import { quickSearch } from './ui/quickpick';
 
 export function activate(context: vscode.ExtensionContext): void {
   const indexer = new Indexer();
+  indexer.attachStorage(context.globalStorageUri);
   const codeLens = new EndpointCodeLensProvider(indexer);
 
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);

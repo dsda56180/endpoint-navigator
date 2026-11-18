@@ -10,6 +10,14 @@ interface FileCache {
   endpoints: Endpoint[];
 }
 
+interface PersistedCache {
+  version: number;
+  settingsKey: string;
+  entries: Record<string, { mtime: number; endpoints: Endpoint[] }>;
+}
+
+const CACHE_VERSION = 1;
+const CACHE_FILE = 'index-cache.json';
 const CONCURRENCY = 8;
 
 async function mapLimit<T, R>(
@@ -40,6 +48,79 @@ export class Indexer {
   private duplicateGroups: DuplicateGroup[] = [];
   private moduleDirs: Array<{ dir: string; name: string }> = [];
   private building: Promise<Endpoint[]> | null = null;
+  private storageDir?: vscode.Uri;
+  private settingsKeyValue = '';
+  private persistTimer?: ReturnType<typeof setTimeout>;
+
+  attachStorage(dir: vscode.Uri): void {
+    this.storageDir = dir;
+  }
+
+  private describeSettings(settings: Settings): string {
+    return JSON.stringify({
+      scanners: settings.enabledScanners,
+      include: settings.includeGlobs,
+      exclude: settings.excludeGlobs,
+      contextPath: settings.contextPath,
+      rules: settings.customRules
+    });
+  }
+
+  private async loadPersisted(key: string): Promise<void> {
+    if (!this.storageDir || this.cache.size > 0) {
+      return;
+    }
+    try {
+      const raw = await vscode.workspace.fs.readFile(
+        vscode.Uri.joinPath(this.storageDir, CACHE_FILE)
+      );
+      const data = JSON.parse(new TextDecoder('utf-8').decode(raw)) as PersistedCache;
+      if (data.version !== CACHE_VERSION || data.settingsKey !== key) {
+        return;
+      }
+      for (const [file, entry] of Object.entries(data.entries)) {
+        this.cache.set(file, { version: entry.mtime, endpoints: entry.endpoints });
+      }
+    } catch {
+      // 首次运行或缓存损坏，正常全量扫描
+    }
+  }
+
+  private schedulePersist(): void {
+    if (!this.storageDir) {
+      return;
+    }
+    if (this.persistTimer) {
+      clearTimeout(this.persistTimer);
+    }
+    this.persistTimer = setTimeout(() => {
+      void this.persist();
+    }, 1500);
+  }
+
+  private async persist(): Promise<void> {
+    if (!this.storageDir) {
+      return;
+    }
+    try {
+      await vscode.workspace.fs.createDirectory(this.storageDir);
+      const entries: Record<string, { mtime: number; endpoints: Endpoint[] }> = {};
+      for (const [file, entry] of this.cache.entries()) {
+        entries[file] = { mtime: entry.version, endpoints: entry.endpoints };
+      }
+      const payload: PersistedCache = {
+        version: CACHE_VERSION,
+        settingsKey: this.settingsKeyValue,
+        entries
+      };
+      await vscode.workspace.fs.writeFile(
+        vscode.Uri.joinPath(this.storageDir, CACHE_FILE),
+        Buffer.from(JSON.stringify(payload), 'utf8')
+      );
+    } catch {
+      // 缓存写入失败不影响功能
+    }
+  }
 
   get all(): Endpoint[] {
     return this.endpoints;
@@ -104,6 +185,8 @@ export class Indexer {
     const scanners = selectScanners(settings.enabledScanners);
     const options = { rules: settings.customRules };
 
+    this.settingsKeyValue = this.describeSettings(settings);
+    await this.loadPersisted(this.settingsKeyValue);
     await this.loadModuleDirs();
 
     const include =
@@ -170,6 +253,7 @@ export class Indexer {
 
     this.endpoints = collected;
     this.duplicateGroups = findDuplicates(collected);
+    this.schedulePersist();
     return collected;
   }
 
@@ -202,6 +286,7 @@ export class Indexer {
       this.endpoints = this.endpoints.filter((ep) => ep.filePath !== uri.fsPath);
       this.endpoints.push(...found);
       this.duplicateGroups = findDuplicates(this.endpoints);
+      this.schedulePersist();
     } catch {
       // 忽略
     }
