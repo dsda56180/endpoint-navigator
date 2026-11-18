@@ -1,0 +1,186 @@
+{
+  "name": "endpoint-navigator",
+  "displayName": "Endpoint Navigator",
+  "description": "搜索并跳转 Java 项目中的 REST / WebSocket / Netty / xxl-job / MQ / 定时任务 / MyBatis Mapper 接口，支持正则与模糊搜索，支持 Swagger 中文描述反查。",
+  "version": "0.1.0",
+  "publisher": "dongxin",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dsda56180/endpoint-navigator.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dsda56180/endpoint-navigator/issues"
+  },
+  "homepage": "https://github.com/dsda56180/endpoint-navigator#readme",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "java",
+    "spring",
+    "endpoint",
+    "controller",
+    "swagger",
+    "xxl-job",
+    "netty",
+    "navigation"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      {
+        "command": "endpointNavigator.search",
+        "title": "搜索接口",
+        "category": "Endpoint Navigator"
+      },
+      {
+        "command": "endpointNavigator.quickSearch",
+        "title": "快速搜索（QuickPick）",
+        "category": "Endpoint Navigator"
+      },
+      {
+        "command": "endpointNavigator.refresh",
+        "title": "重建索引",
+        "category": "Endpoint Navigator"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "endpointNavigator.search",
+        "key": "ctrl+alt+e",
+        "mac": "cmd+alt+e"
+      }
+    ],
+    "configuration": {
+      "title": "Endpoint Navigator",
+      "properties": {
+        "endpointNavigator.enabledScanners": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "rest",
+              "stomp",
+              "xxljob",
+              "messaging",
+              "mybatis",
+              "regexRule"
+            ]
+          },
+          "default": [
+            "rest",
+            "stomp",
+            "xxljob",
+            "messaging",
+            "mybatis",
+            "regexRule"
+          ],
+          "description": "启用的扫描器。"
+        },
+        "endpointNavigator.includeGlobs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/*.java"
+          ],
+          "description": "参与扫描的文件。"
+        },
+        "endpointNavigator.excludeGlobs": {
+          "type": "string",
+          "default": "**/{target,build,node_modules,out,dist,.git}/**",
+          "description": "排除的目录。"
+        },
+        "endpointNavigator.contextPath": {
+          "type": "string",
+          "default": "",
+          "description": "全局路径前缀，例如 /api。仅影响 REST 接口的展示路径。"
+        },
+        "endpointNavigator.showUnresolved": {
+          "type": "boolean",
+          "default": true,
+          "description": "显示未能解析的常量表达式（如 {ApiConstants.PATH}）。"
+        },
+        "endpointNavigator.customRules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "label",
+              "pattern"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "规则唯一标识。"
+              },
+              "label": {
+                "type": "string",
+                "description": "标签栏显示名称，例如 Netty。"
+              },
+              "type": {
+                "type": "string",
+                "description": "归类到哪个类型，默认同 id。"
+              },
+              "globs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": [
+                  "**/*.java"
+                ],
+                "description": "规则生效的文件范围。"
+              },
+              "pattern": {
+                "type": "string",
+                "description": "正则表达式。推荐使用具名捕获组 path / name / description。"
+              },
+              "flags": {
+                "type": "string",
+                "default": "g",
+                "description": "正则 flags，默认 g。"
+              },
+              "nameGroup": {
+                "type": "string",
+                "default": "name",
+                "description": "作为名称的捕获组。"
+              },
+              "pathGroup": {
+                "type": "string",
+                "default": "path",
+                "description": "作为路径的捕获组。"
+              },
+              "descriptionGroup": {
+                "type": "string",
+                "default": "description",
+                "description": "作为描述（支持中文）的捕获组。"
+              }
+            }
+          },
+          "default": [],
+          "description": "自定义正则规则扫描器。Netty 等特殊框架可通过此配置接入。"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.21.5",
+    "typescript": "^5.4.5"
+  }
+}
