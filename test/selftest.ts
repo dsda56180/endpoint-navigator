@@ -1,3 +1,4 @@
+import { applyConfig, parseProperties, parseYaml } from '../src/analysis/appconfig';
 import { applyConstants } from '../src/analysis/constants';
 import { findDuplicates } from '../src/analysis/duplicates';
 import { findClassHoverTarget, findHoverTargets } from '../src/analysis/hover';
@@ -5,6 +6,8 @@ import { applyInheritance, ifacesOf } from '../src/analysis/inheritance';
 import { parseJava } from '../src/java/parser';
 import { AnnotationNode, Endpoint, ScanContext } from '../src/model';
 import { ALL_SCANNERS } from '../src/registry';
+import { feignScanner } from '../src/scanners/feign';
+import { httpcallScanner } from '../src/scanners/httpcall';
 import { toOpenApi } from '../src/report';
 import { parseQuery, rankEndpoints } from '../src/search/score';
 
@@ -388,6 +391,109 @@ check(
   'OpenAPI 优先使用 Swagger 标签',
   JSON.parse(toOpenApi(taggedFound, (p) => p)).paths['/driver/list'].get.tags[0] ===
     '基础-司机信息管理'
+);
+
+const feignParsed = parseJava(`
+@FeignClient(name = "standard-service", path = "/device")
+public interface DeviceClient {
+    @GetMapping("/list")
+    Result list();
+    @PostMapping("/save")
+    Result save(@RequestBody Device d);
+}
+`);
+const feignFound = feignScanner.scan(
+  {
+    filePath: '/tmp/DeviceClient.java',
+    module: 'demo',
+    constants: feignParsed.constants,
+    parsed: feignParsed,
+    contextPath: ''
+  },
+  { rules: [] }
+);
+check(
+  'Feign 服务名与路径拼接',
+  feignFound.length === 2 &&
+    feignFound[0].path === '/device/list' &&
+    feignFound[0].tags[0] === 'standard-service' &&
+    feignFound[0].direction === 'out',
+  feignFound.map((ep) => `${ep.httpMethod} ${ep.path}`).join(',')
+);
+
+const httpText = `
+public class ApiClient {
+    private static final String BASE = "http://api.test";
+    @Value("\${device.api.url}")
+    private String deviceApiUrl;
+    public void run() {
+        restTemplate.getForObject(BASE + "/user/" + id, String.class);
+        restTemplate.postForObject(deviceApiUrl + "/dev/save", body, String.class);
+        HttpUtil.post("https://hutool.test/open", body);
+        return webClient.get().uri("/rel/list").retrieve();
+    }
+}
+`;
+const httpParsed = parseJava(httpText);
+const httpConfig = new Map<string, string>([['device.api.url', 'https://device.test/api']]);
+const httpFound = httpcallScanner.scan(
+  {
+    filePath: '/tmp/ApiClient.java',
+    module: 'demo',
+    constants: httpParsed.constants,
+    parsed: httpParsed,
+    contextPath: '',
+    text: httpText,
+    config: httpConfig
+  },
+  { rules: [] }
+);
+check(
+  'RestTemplate + 常量拼接',
+  httpFound.some((ep) => ep.httpMethod === 'GET' && ep.path === 'http://api.test/user/{id}'),
+  httpFound.map((ep) => `${ep.httpMethod} ${ep.path}`).join(',')
+);
+check(
+  'Hutool 调用与域名标签',
+  httpFound.some(
+    (ep) => ep.path === 'https://hutool.test/open' && ep.tags[0] === 'hutool.test'
+  )
+);
+check(
+  '@Value 字段与 @Value 配置解析',
+  httpFound.some((ep) => ep.path === 'https://device.test/api/dev/save')
+);
+check(
+  'WebClient 相对路径与动词推断',
+  httpFound.some((ep) => ep.path === '/rel/list' && ep.httpMethod === 'GET')
+);
+
+const yamlConfig = new Map<string, string>();
+parseYaml('device:\n  api:\n    url: http://cfg.test\n', yamlConfig);
+parseProperties('device.token=abc\n', yamlConfig);
+check(
+  'YAML 嵌套键展开',
+  yamlConfig.get('device.api.url') === 'http://cfg.test' &&
+    yamlConfig.get('device.token') === 'abc'
+);
+
+const configEndpoint = {
+  ...probe('/x', 'GET', 'C'),
+  path: '${svc.url}/device/list',
+  name: 'GET ${svc.url}/device/list'
+};
+const configured = applyConfig(
+  configEndpoint,
+  new Map<string, string>([['svc.url', 'https://svc.test']])
+);
+check(
+  '配置占位符回填接口路径',
+  configured.path === 'https://svc.test/device/list',
+  configured.path
+);
+check(
+  '未配置占位符保留并标记',
+  applyConfig(configEndpoint, new Map()).path === '${svc.url}/device/list'
 );
 
 console.log(`\n通过 ${passed} 项，失败 ${failed} 项`);

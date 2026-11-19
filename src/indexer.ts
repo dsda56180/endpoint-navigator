@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { applyConfig, parseConfigFile } from './analysis/appconfig';
 import { applyConstants, stringLiteral } from './analysis/constants';
 import { DuplicateGroup, findDuplicates } from './analysis/duplicates';
 import { applyInheritance, IfaceInfo, ifacesOf } from './analysis/inheritance';
@@ -27,7 +28,7 @@ interface PersistedCache {
   entries: Record<string, PersistedEntry>;
 }
 
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 const CACHE_FILE = 'index-cache.json';
 const CONCURRENCY = 8;
 
@@ -66,6 +67,7 @@ export class Indexer {
   private persistTimer?: ReturnType<typeof setTimeout>;
   private extensionVersion = '0';
   private cacheDirty = false;
+  private cacheKey = '';
 
   get all(): Endpoint[] {
     return this.endpoints;
@@ -110,14 +112,19 @@ export class Indexer {
 
   // ---- 持久化 ----
 
-  private describeSettings(settings: Settings, contextPath: string): string {
+  private describeSettings(
+    settings: Settings,
+    contextPath: string,
+    config: Map<string, string>
+  ): string {
     return JSON.stringify({
       v: this.extensionVersion,
       scanners: settings.enabledScanners,
       include: settings.includeGlobs,
       exclude: settings.excludeGlobs,
       contextPath,
-      rules: settings.customRules
+      rules: settings.customRules,
+      config: Array.from(config.entries()).sort((a, b) => (a[0] < b[0] ? -1 : 1))
     });
   }
 
@@ -263,6 +270,35 @@ export class Indexer {
     return '';
   }
 
+  /** 读取 application.yml / application.properties，用于解析 ${key} 占位符 */
+  private async loadAppConfig(): Promise<Map<string, string>> {
+    const config = new Map<string, string>();
+    try {
+      const files = await vscode.workspace.findFiles(
+        '**/application{,-*}.{yml,yaml,properties}',
+        '**/{target,build,node_modules,out,dist,.git}/**',
+        50
+      );
+      const rank = (filePath: string): number =>
+        /[\\/]application\.(yml|yaml|properties)$/i.test(filePath) ? 0 : 1;
+      const sorted = files
+        .slice()
+        .sort((a, b) => rank(a.fsPath) - rank(b.fsPath) || a.fsPath.localeCompare(b.fsPath));
+
+      for (const uri of sorted) {
+        try {
+          const text = DECODER.decode(await vscode.workspace.fs.readFile(uri));
+          parseConfigFile(uri.fsPath, text, config);
+        } catch {
+          // 单个配置读取失败不影响整体
+        }
+      }
+    } catch {
+      // 无配置文件
+    }
+    return config;
+  }
+
   // ---- 模块信息 ----
 
   private async loadModuleDirs(): Promise<void> {
@@ -295,8 +331,13 @@ export class Indexer {
     const scanners = selectScanners(settings.enabledScanners);
     const options = { rules: settings.customRules };
     const contextPath = await this.resolveContextPath(settings);
+    const appConfig = await this.loadAppConfig();
 
-    this.settingsKeyValue = this.describeSettings(settings, contextPath);
+    this.settingsKeyValue = this.describeSettings(settings, contextPath, appConfig);
+    if (this.cacheKey !== this.settingsKeyValue) {
+      this.cache.clear();
+      this.cacheKey = this.settingsKeyValue;
+    }
     await this.loadPersisted(this.settingsKeyValue);
     await this.loadModuleDirs();
 
@@ -346,6 +387,7 @@ export class Indexer {
 
     const collected: Endpoint[] = [];
     const parsedFiles = new Map<string, ParsedFile>();
+    const texts = new Map<string, string>();
     const freshMeta = new Map<string, { version: number; constants: Array<[string, string]>; ifaces: IfaceInfo[] }>();
     let done = 0;
 
@@ -370,6 +412,7 @@ export class Indexer {
         const text = DECODER.decode(await vscode.workspace.fs.readFile(uri));
         const parsed = parseJava(text);
         parsedFiles.set(key, parsed);
+        texts.set(key, text);
         freshMeta.set(key, {
           version,
           constants: Array.from(parsed.constants.entries()),
@@ -399,7 +442,9 @@ export class Indexer {
         module: this.moduleOf(key),
         constants: parsed.constants,
         parsed,
-        contextPath
+        contextPath,
+        text: texts.get(key),
+        config: appConfig
       };
 
       const found: Endpoint[] = [];
@@ -419,7 +464,7 @@ export class Indexer {
     }
 
     const constants = this.collectConstants();
-    this.endpoints = collected.map((ep) => applyConstants(ep, constants));
+    this.endpoints = collected.map((ep) => applyConfig(applyConstants(ep, constants), appConfig));
     this.duplicateGroups = findDuplicates(this.endpoints);
     this.schedulePersist();
     return this.endpoints;
@@ -439,12 +484,15 @@ export class Indexer {
       applyInheritance(parsed, registry);
 
       const contextPath = await this.resolveContextPath(settings);
+      const appConfig = await this.loadAppConfig();
       const ctx: ScanContext = {
         filePath: key,
         module: this.moduleOf(key),
         constants: parsed.constants,
         parsed,
-        contextPath
+        contextPath,
+        text,
+        config: appConfig
       };
 
       const found: Endpoint[] = [];
@@ -469,7 +517,7 @@ export class Indexer {
       const constants = this.collectConstants();
       this.endpoints = this.endpoints
         .filter((ep) => ep.filePath !== key)
-        .concat(found.map((ep) => applyConstants(ep, constants)));
+        .concat(found.map((ep) => applyConfig(applyConstants(ep, constants), appConfig)));
       this.duplicateGroups = findDuplicates(this.endpoints);
       this.schedulePersist();
     } catch {

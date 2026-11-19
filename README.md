@@ -14,6 +14,7 @@ Endpoint Navigator indexes every HTTP, WebSocket, xxl-job, MQ, scheduled-task an
 - Hovering a mapping annotation previews the resolved path, description and duplicate warnings
 - Three switchable layouts: classic list, card and compact
 - Shows Swagger tags and can group results by tag
+- Indexes OpenFeign clients and outgoing RestTemplate / WebClient / Hutool / OkHttp calls, resolving constants, `@Value` fields and `${...}` config placeholders
 - Export to OpenAPI 3.0 for Postman, Apifox, Insomnia and Swagger UI
 - Duplicate route detection, Markdown/JSON export of the current result set
 - Incremental, cached indexing with file watching
@@ -28,7 +29,11 @@ Endpoint Navigator indexes every HTTP, WebSocket, xxl-job, MQ, scheduled-task an
 | MQ | `@RabbitListener` / `@KafkaListener` / `@RocketMQMessageListener` |
 | 定时任务 | `@Scheduled` |
 | Mapper | `@Mapper` 或 `extends BaseMapper` |
+| Feign | `@FeignClient` 接口上的 `@GetMapping` / `@PostMapping` 等，服务名作为标签 |
+| HTTP 调用 | `RestTemplate` / `WebClient` / Hutool `HttpUtil` / OkHttp `.url(...)` 调用点 |
 | 自定义 | 通过 `endpointNavigator.customRules` 配置正则，接入 Netty 等任意框架 |
+
+出站调用（Feign、HTTP 调用）会标记「出站」，路径支持类常量、`+` 拼接、`@Value` 注入字段以及 `application.yml` / `application.properties` 中的 `${key}` 占位符；无法解析的常量会保留在路径中并标注。
 
 ## 用法
 

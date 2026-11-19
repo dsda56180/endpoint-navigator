@@ -4,10 +4,14 @@ import { stompScanner } from './scanners/stomp';
 import { xxljobScanner } from './scanners/xxljob';
 import { messagingScanner } from './scanners/messaging';
 import { mybatisScanner } from './scanners/mybatis';
+import { feignScanner } from './scanners/feign';
+import { httpcallScanner } from './scanners/httpcall';
 import { regexRuleScanner } from './scanners/regexRule';
 
 export const ALL_SCANNERS: Scanner[] = [
   restScanner,
+  feignScanner,
+  httpcallScanner,
   stompScanner,
   xxljobScanner,
   messagingScanner,

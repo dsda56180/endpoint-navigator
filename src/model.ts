@@ -5,6 +5,8 @@ export type ScanKind =
   | 'mq'
   | 'scheduled'
   | 'mybatis'
+  | 'feign'
+  | 'httpcall'
   | 'netty'
   | string;
 
@@ -49,6 +51,8 @@ export interface Endpoint {
   name: string;
   path: string;
   httpMethod?: string;
+  /** 接口方向：in 为对外提供，out 为调用外部 */
+  direction?: 'in' | 'out';
   /** Swagger 中文描述 */
   description?: string;
   tags: string[];
@@ -68,6 +72,10 @@ export interface ScanContext {
   constants: Map<string, string>;
   parsed: ParsedFile;
   contextPath: string;
+  /** 源文件文本，供基于调用点的扫描器使用 */
+  text?: string;
+  /** application.yml / properties 中的应用配置 */
+  config?: Map<string, string>;
 }
 
 export interface ScannerConfig {

@@ -358,6 +358,12 @@
 
       const desc = document.createElement('div');
       desc.className = 'desc';
+      if (item.direction === 'out') {
+        const dir = document.createElement('span');
+        dir.className = 'tag dir';
+        dir.textContent = '出站';
+        desc.appendChild(dir);
+      }
       (item.tags || []).forEach(function (tag) {
         const chip = document.createElement('span');
         chip.className = 'tag';

@@ -234,7 +234,9 @@ const TYPE_ORDER: Record<string, number> = {
   xxljob: 2,
   mq: 3,
   scheduled: 4,
-  mybatis: 5
+  mybatis: 5,
+  feign: 6,
+  httpcall: 7
 };
 
 export function rankEndpoints(

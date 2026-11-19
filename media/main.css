@@ -320,6 +320,11 @@ mark {
   background: rgba(255, 255, 255, 0.18);
 }
 
+.tag.dir {
+  background: rgba(255, 176, 32, 0.2);
+  color: var(--vscode-editorWarning-foreground, #d7a03a);
+}
+
 .group-header {
   position: sticky;
   top: 0;

@@ -1,5 +1,23 @@
 # 更新日志
 
+## 0.14.0
+
+### 新增
+
+- Feign 扫描器：解析 `@FeignClient` 接口的服务名、`path` 与映射注解，服务名作为标签，可跳转与分组
+- HTTP 调用扫描器：识别 RestTemplate / WebClient / Hutool `HttpUtil` / OkHttp `.url(...)` 调用点
+- 路径解析能力：
+  - 类常量与 `+` 字符串拼接
+  - `@Value("${key}")` 注入字段
+  - `application.yml` / `application.yaml` / `application.properties` 中的 `${key:default}` 占位符
+- 出站接口显示「出站」标记，标签使用目标服务名或域名
+- `enabledScanners` 新增 `feign`、`httpcall`，默认开启
+
+### 变更
+
+- 索引缓存版本升级，配置变化会自动使缓存失效
+- OpenAPI 导出仍只包含本地 REST 接口
+
 ## 0.13.0
 
 ### 新增

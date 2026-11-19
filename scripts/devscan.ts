@@ -68,7 +68,9 @@ for (const file of files) {
     module: moduleOf(file),
     constants: parsed.constants,
     parsed,
-    contextPath: ''
+    contextPath: '',
+    text,
+    config: new Map<string, string>()
   };
 
   for (const scanner of ALL_SCANNERS) {

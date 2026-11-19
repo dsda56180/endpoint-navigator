@@ -2,7 +2,7 @@ import { findAnnotation } from '../java/parser';
 import { evalStrings, mappingPaths, parseArgs, splitTopLevel, stringArg } from '../java/expr';
 import { Endpoint, ScanContext, Scanner, makeSearchText } from '../model';
 
-const MAPPING_METHOD: Record<string, string> = {
+export const MAPPING_METHOD: Record<string, string> = {
   GetMapping: 'GET',
   PostMapping: 'POST',
   PutMapping: 'PUT',
@@ -26,7 +26,7 @@ export function normalizePath(...segments: string[]): string {
   return withLeading.replace(/\/{2,}/g, '/');
 }
 
-function httpMethodsOf(args: string | null): string[] {
+export function httpMethodsOf(args: string | null): string[] {
   const map = parseArgs(args);
   const expr = map.get('method');
   if (!expr) {
@@ -41,7 +41,7 @@ function httpMethodsOf(args: string | null): string[] {
   return methods.length > 0 ? methods : ['ALL'];
 }
 
-function collectTags(
+export function collectTags(
   annotations: ScanContext['parsed']['types'][number]['annotations'],
   constants: Map<string, string>,
   unresolved: string[]
@@ -71,7 +71,7 @@ function collectTags(
   return tags;
 }
 
-function descriptionOf(
+export function descriptionOf(
   annotations: ScanContext['parsed']['types'][number]['annotations'],
   constants: Map<string, string>,
   unresolved: string[]

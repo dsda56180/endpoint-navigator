@@ -19,6 +19,8 @@ export function readSettings(): Settings {
   return {
     enabledScanners: cfg.get<string[]>('enabledScanners', [
       'rest',
+      'feign',
+      'httpcall',
       'stomp',
       'xxljob',
       'messaging',
